@@ -9,14 +9,27 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Only the team admin (who knows the secret) may broadcast.
+export function isAuthorized(providedSecret: unknown, expectedSecret: string | undefined): boolean {
+  return providedSecret !== undefined && providedSecret === expectedSecret;
+}
+
+// 404/410 = subscription expired; anything else (network blip, 500, etc.) should be left alone.
+export function shouldRemoveSubscription(statusCode: unknown): boolean {
+  return statusCode === 404 || statusCode === 410;
+}
+
+export function buildPayload(title?: string, body?: string, url?: string): string {
+  return JSON.stringify({ title: title || "KATL Cricket", body: body || "", url: url || "." });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
     const { title, body, url, adminSecret } = await req.json();
 
-    // Only the team admin (who knows the secret) may broadcast.
-    if (adminSecret !== Deno.env.get("ADMIN_SEND_SECRET")) {
+    if (!isAuthorized(adminSecret, Deno.env.get("ADMIN_SEND_SECRET"))) {
       return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: cors });
     }
 
@@ -34,16 +47,15 @@ Deno.serve(async (req) => {
     const { data: subs, error } = await supabase.from("push_subs").select("id, sub");
     if (error) throw error;
 
-    const payload = JSON.stringify({ title: title || "KATL Cricket", body: body || "", url: url || "." });
+    const payload = buildPayload(title, body, url);
     let sent = 0, removed = 0;
 
     await Promise.all((subs || []).map(async (row) => {
       try {
         await webpush.sendNotification(row.sub, payload);
         sent++;
-      } catch (err) {
-        // 404/410 = subscription expired; clean it up.
-        if (err?.statusCode === 404 || err?.statusCode === 410) {
+      } catch (err: any) {
+        if (shouldRemoveSubscription(err?.statusCode)) {
           await supabase.from("push_subs").delete().eq("id", row.id);
           removed++;
         }
@@ -53,7 +65,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ sent, removed, total: subs?.length || 0 }), {
       headers: { ...cors, "Content-Type": "application/json" },
     });
-  } catch (e) {
+  } catch (e: any) {
     return new Response(JSON.stringify({ error: String(e?.message || e) }), { status: 500, headers: cors });
   }
 });

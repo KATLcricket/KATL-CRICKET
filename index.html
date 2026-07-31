@@ -488,6 +488,8 @@ function App() {
 
   // When a form is open/being typed in, pause auto-refresh so it can't clobber input.
   const editingRef = React.useRef(0);
+  // Only nudge with "Welcome back" once per app load, not on every refresh.
+  const welcomedRef = React.useRef(false);
   const beginEditing = () => {
     editingRef.current++;
   };
@@ -550,6 +552,11 @@ function App() {
       setExpenses(cur => unionById(ex, cur));
       setSettlements(cur => unionById(st, cur));
       if (meStored) setMe(meStored);
+      if (meStored && !welcomedRef.current) {
+        welcomedRef.current = true;
+        const person = squad.find(pl => pl.id === meStored);
+        if (person) ping(`Welcome back, ${person.name}! 👋`);
+      }
       if (!silent) saveBoth("katl:players", squad);
       setLastSync(new Date().toLocaleTimeString("en-IN", {
         hour: "2-digit",

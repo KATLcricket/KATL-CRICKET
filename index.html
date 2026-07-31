@@ -38,6 +38,7 @@
 
 
 
+
 const {
   useState,
   useEffect,
@@ -66,6 +67,13 @@ const BORDER = "rgba(255,107,26,0.22)";
 
 // Change this to your own team admin passcode.
 const ADMIN_CODE = "katl2026";
+
+// Public app link (used for WhatsApp share).
+const APP_URL = "https://vishalsinha1909.github.io/KATL-CRICKET/";
+function openWhatsApp(text) {
+  const url = "https://wa.me/?text=" + encodeURIComponent(text);
+  window.open(url, "_blank");
+}
 
 // ---------- The KATL squad (from Squad HQ) ----------
 const SEED_PLAYERS = [{
@@ -817,7 +825,8 @@ function App() {
     me: me,
     chooseMe: chooseMe,
     onLeave: onLeave,
-    isAdmin: isAdmin
+    isAdmin: isAdmin,
+    matches: matches
   }), tab === "matches" && /*#__PURE__*/React.createElement(MatchesTab, {
     players: players,
     matches: matches,
@@ -1027,7 +1036,8 @@ function WeekendTab({
   me,
   chooseMe,
   onLeave,
-  isAdmin
+  isAdmin,
+  matches
 }) {
   const todayISO = toISO(new Date());
   // Default selected day: today if it's in this week, else first day of the week.
@@ -1067,9 +1077,28 @@ function WeekendTab({
     return players.filter(p => onLeave(p.id, iso) ? false : d[p.id] === "in").length;
   };
   const weekLabel = weekOffset === 0 ? "THIS WEEK" : weekOffset === 1 ? "NEXT WEEK" : weekOffset === -1 ? "LAST WEEK" : weekOffset > 1 ? `IN ${weekOffset} WEEKS` : `${Math.abs(weekOffset)} WEEKS AGO`;
+  const shareWeekend = () => {
+    const d = new Date(dateISO + "T00:00:00");
+    const dLabel = d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" });
+    const day = avail[dateISO] || {};
+    const nameOf = (id) => (players.find((p) => p.id === id) || {}).name || "?";
+    const inList = players.filter((p) => !onLeave(p.id, dateISO) && day[p.id] === "in").map((p) => p.name);
+    const maybeList = players.filter((p) => !onLeave(p.id, dateISO) && day[p.id] === "maybe").map((p) => p.name);
+    const fixture = (matches || []).find((m) => m.date === dateISO && m.status !== "completed");
+    let msg = "🏏 *KATL — " + dLabel + "*\n";
+    if (fixture) msg += (fixture.opponent ? "vs " + fixture.opponent : "Match") + (fixture.time ? " ⏰ " + fixture.time : "") + (fixture.venue ? " 📍 " + fixture.venue : "") + "\n";
+    msg += "\n✅ IN (" + inList.length + "): " + (inList.join(", ") || "—") + "\n";
+    if (maybeList.length) msg += "🤔 MAYBE (" + maybeList.length + "): " + maybeList.join(", ") + "\n";
+    msg += "\nMark yourself 👉 " + APP_URL;
+    openWhatsApp(msg);
+  };
+  const myUnmarked = (me && weekOffset === 0) ? week.filter((iso) => !(avail[iso] || {})[me] && !onLeave(me, iso)) : [];
   return /*#__PURE__*/React.createElement("div", {
     className: "space-y-5"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, myUnmarked.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "rounded-xl px-4 py-2.5 text-sm flex items-center gap-2",
+    style: { background: "rgba(255,184,0,0.12)", border: "1px solid rgba(255,184,0,0.4)", color: "#FFB800" }
+  }, "\u23F0 You haven't marked ", myUnmarked.map((iso) => { const d = new Date(iso + "T00:00:00"); return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }); }).join(" & "), " yet."), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setWeekOffset(weekOffset - 1),
@@ -1121,7 +1150,16 @@ function WeekendTab({
         color: sel ? "#fff" : cnt ? "#4ADE80" : "#555"
       }
     }, cnt > 0 ? `${cnt} in` : "—"));
-  })), /*#__PURE__*/React.createElement(Card, {
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: shareWeekend,
+    className: "w-full py-2.5 rounded-xl kc-display uppercase text-sm font-semibold",
+    style: {
+      background: "rgba(37,211,102,0.15)",
+      color: "#25D366",
+      border: "1px solid rgba(37,211,102,0.5)",
+      letterSpacing: 1
+    }
+  }, "\uD83D\uDCF2 Share this day to WhatsApp"), /*#__PURE__*/React.createElement(Card, {
     className: "p-4",
     style: {
       borderColor: "rgba(255,107,26,0.45)"
@@ -1154,7 +1192,7 @@ function WeekendTab({
     }
   }, s.label)))) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-sm text-neutral-400 mb-2"
-  }, "Who are you? Pick your name once and this device remembers it."), /*#__PURE__*/React.createElement("div", {
+  }, "\uD83D\uDC4B Welcome! Tap your name to get started \u2014 this device will remember you, so you can mark your weekend availability with one tap."), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-wrap gap-2"
   }, sorted.map(p => /*#__PURE__*/React.createElement("button", {
     key: p.id,
@@ -1815,11 +1853,20 @@ function StatsTab({
     Object.values(avail).forEach(day => {
       if (day[p.id] === "in") ins++;
     });
+    // Reliability: of completed matches where they said IN, how many did they play?
+    const completedM = matches.filter(m => m.status === "completed");
+    let saidIn = 0, showed = 0;
+    completedM.forEach(m => {
+      if ((avail[m.date] || {})[p.id] === "in") { saidIn++; if ((m.played || []).includes(p.id)) showed++; }
+    });
+    const reliability = saidIn > 0 ? Math.round((showed / saidIn) * 100) : null;
     return {
       ...p,
       playedN,
       upcomingN,
-      ins
+      ins,
+      reliability,
+      saidIn
     };
   }).sort((a, b) => b.playedN - a.playedN || b.upcomingN - a.upcomingN || a.name.localeCompare(b.name));
   const max = Math.max(1, ...stats.map(s => s.playedN));
@@ -1889,7 +1936,7 @@ function StatsTab({
     }
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-neutral-500 mt-1"
-  }, total ? `${Math.round(s.playedN / total * 100)}% of completed` : "—", " · IN for ", s.upcomingN, " of ", upcomingFixtures.length, " upcoming"))))));
+  }, total ? `${Math.round(s.playedN / total * 100)}% of completed` : "—", " · IN for ", s.upcomingN, " of ", upcomingFixtures.length, " upcoming", s.reliability !== null ? /*#__PURE__*/React.createElement("span", { style: { color: s.reliability >= 80 ? "#4ADE80" : s.reliability >= 50 ? "#FFB800" : "#f43f5e" } }, " · " + s.reliability + "% reliable") : null))))));
 }
 
 // ---------- Expenses & settle-up ----------
@@ -2106,7 +2153,20 @@ function ExpensesTab({
       ...btnOrange,
       letterSpacing: 1
     }
-  }, open ? "Cancel" : "+ Add expense")), /*#__PURE__*/React.createElement("div", {
+  }, open ? "Cancel" : "+ Add expense")), me && Math.abs(balances[me] || 0) > 0.01 && /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 flex items-center justify-between",
+    style: {
+      borderColor: (balances[me] || 0) >= 0 ? "rgba(74,222,128,0.4)" : "rgba(244,63,94,0.4)"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] uppercase text-neutral-500",
+    style: { letterSpacing: 2 }
+  }, (balances[me] || 0) >= 0 ? "You're owed" : "You owe"), /*#__PURE__*/React.createElement("div", {
+    className: "kc-bebas text-4xl",
+    style: { color: (balances[me] || 0) >= 0 ? "#4ADE80" : "#f43f5e" }
+  }, INR(Math.abs(balances[me] || 0)))), /*#__PURE__*/React.createElement("div", {
+    className: "text-right text-xs text-neutral-500"
+  }, (playerName(me) || "You"), (balances[me] || 0) >= 0 ? " — others owe you" : " — settle up below")), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 flex-wrap"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-xs uppercase text-neutral-500",
@@ -2932,10 +2992,12 @@ root.render(/*#__PURE__*/React.createElement(App, null));
 
 
 
+
 //]]>
 </script>
 <script>
 //<![CDATA[
+
 /* ================= KATL Push Notifications (standalone add-on) ================= */
 (function () {
   var SUPABASE_URL = "https://efutoaoejjnwqujkyjzf.supabase.co";
@@ -3053,12 +3115,49 @@ root.render(/*#__PURE__*/React.createElement(App, null));
     btn.onclick = on ? unsubscribe : subscribe;
     wrap.appendChild(btn);
 
+    var installed = false;
+    try { installed = localStorage.getItem("katl:installed") === "1"; } catch (e) {}
+    if (!isStandalone() && !installed && (deferredPrompt || isIOS())) {
+      var ib = document.createElement("button");
+      ib.textContent = "\uD83D\uDCF2 Install app";
+      ib.style.cssText = "background:#181818;color:#FF6B1A;border:1px solid rgba(255,107,26,.5);padding:8px 14px;border-radius:99px;font-size:13px;font-weight:600;cursor:pointer";
+      ib.onclick = doInstall;
+      wrap.appendChild(ib);
+    }
+
     if (isAdmin()) {
       var sb = document.createElement("button");
       sb.textContent = "📢 Send to team";
       sb.style.cssText = "background:#181818;color:#FFB800;border:1px solid rgba(255,107,26,.4);padding:8px 14px;border-radius:99px;font-size:13px;font-weight:600;cursor:pointer";
       sb.onclick = sendBroadcast;
       wrap.appendChild(sb);
+    }
+  }
+
+  // ---- Home-screen install ----
+  var deferredPrompt = null;
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    render();
+  });
+  window.addEventListener("appinstalled", function () {
+    deferredPrompt = null;
+    try { localStorage.setItem("katl:installed", "1"); } catch (e) {}
+    render();
+  });
+  function isStandalone() {
+    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  }
+  function isIOS() {
+    return /iphone|ipad|ipod/i.test(navigator.userAgent);
+  }
+  function doInstall() {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.finally(function () { deferredPrompt = null; render(); });
+    } else if (isIOS()) {
+      alert("To install KATL on iPhone:\n\n1. Tap the Share button (□↑) at the bottom of Safari\n2. Scroll down and tap 'Add to Home Screen'\n3. Tap Add\n\nThen open KATL from your home screen.");
     }
   }
 
@@ -3072,6 +3171,7 @@ root.render(/*#__PURE__*/React.createElement(App, null));
   // Re-render when admin state may change
   setInterval(render, 4000);
 })();
+
 
 //]]>
 </script>

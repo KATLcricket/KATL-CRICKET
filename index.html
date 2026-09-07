@@ -39,6 +39,11 @@
 
 
 
+
+
+
+
+
 const {
   useState,
   useEffect,
@@ -67,9 +72,11 @@ const BORDER = "rgba(255,107,26,0.22)";
 
 // Change this to your own team admin passcode.
 const ADMIN_CODE = "katl2026";
+// Team entry passcode — everyone needs this to open the app. Change it to your own.
+const TEAM_CODE = "katl";
 
 // Public app link (used for WhatsApp share).
-const APP_URL = "https://vishalsinha1909.github.io/KATL-CRICKET/";
+const APP_URL = "https://katlcricket.github.io/KATL-CRICKET/";
 function openWhatsApp(text) {
   const url = "https://wa.me/?text=" + encodeURIComponent(text);
   window.open(url, "_blank");
@@ -262,7 +269,7 @@ const sleep = ms => new Promise(res => setTimeout(res, ms));
 const SUPABASE_URL = "https://efutoaoejjnwqujkyjzf.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_cNhggrxPsGl-DssQNP8YVQ_6znHS2tg";
 // Keys that belong to the whole team (shared in Supabase).
-const SHARED_KEYS = ["katl:players", "katl:avail", "katl:matches", "katl:leaves", "katl:expenses", "katl:settlements"];
+const SHARED_KEYS = ["katl:players", "katl:avail", "katl:matches", "katl:leaves", "katl:expenses", "katl:settlements", "katl:cricheroes"];
 const supaConfigured = () => SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("YOUR-PROJECT") && !SUPABASE_ANON_KEY.includes("YOUR-PUBLIC");
 const supaHeaders = () => ({
   "apikey": SUPABASE_ANON_KEY,
@@ -422,11 +429,26 @@ const STATUS = {
   }
 };
 const initials = name => name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+let PHOTO_MAP = {};
+function setPhotoMap(players) {
+  const m = {};
+  (players || []).forEach(p => { if (p && p.photo) m[p.name] = p.photo; });
+  PHOTO_MAP = m;
+}
 function Avatar({
   name,
   size = 32,
   fontSize = 12
 }) {
+  const photo = PHOTO_MAP[name];
+  if (photo) {
+    return /*#__PURE__*/React.createElement("img", {
+      src: photo,
+      alt: name,
+      className: "rounded-full shrink-0 object-cover",
+      style: { width: size, height: size, border: `2px solid ${ORANGE}` }
+    });
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "rounded-full flex items-center justify-center shrink-0 kc-bebas",
     style: {
@@ -469,15 +491,54 @@ const btnOrange = {
   borderRadius: 10,
   boxShadow: "0 2px 10px rgba(255,107,26,0.35)"
 };
+function GateScreen({ onUnlock }) {
+  const [code, setCode] = useState("");
+  const [err, setErr] = useState(false);
+  const submit = () => {
+    if (code.trim().toLowerCase() === TEAM_CODE.toLowerCase()) onUnlock();
+    else { setErr(true); }
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen flex flex-col items-center justify-center gap-5 kc-body px-6",
+    style: { background: "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(255,107,26,0.22) 0%, #080808 70%)" }
+  },
+    /*#__PURE__*/React.createElement("style", null, FONT_CSS),
+    /*#__PURE__*/React.createElement("img", { src: KATL_LOGO, alt: "KATL", style: { width: 120, filter: "drop-shadow(0 0 18px rgba(255,107,26,0.5))" } }),
+    /*#__PURE__*/React.createElement("div", { className: "text-center" },
+      /*#__PURE__*/React.createElement("div", { className: "kc-bebas text-4xl", style: { letterSpacing: 3, color: "#fff" } }, "KATL ", /*#__PURE__*/React.createElement("span", { style: { color: ORANGE } }, "CRICKET")),
+      /*#__PURE__*/React.createElement("div", { className: "text-sm text-neutral-400 mt-1" }, "Enter the team passcode to continue")
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "w-full max-w-xs" },
+      /*#__PURE__*/React.createElement("input", {
+        type: "password", autoFocus: true, value: code,
+        onChange: (e) => { setCode(e.target.value); setErr(false); },
+        onKeyDown: (e) => e.key === "Enter" && submit(),
+        placeholder: "Team passcode",
+        style: { ...inputStyle, marginTop: 0, textAlign: "center", fontSize: 18, borderColor: err ? "#f43f5e" : "rgba(255,255,255,0.14)" }
+      }),
+      err && /*#__PURE__*/React.createElement("div", { className: "text-center text-sm mt-2", style: { color: "#f43f5e" } }, "Wrong passcode — ask a teammate."),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: submit,
+        className: "w-full mt-3 py-3 kc-bebas text-xl",
+        style: { ...btnOrange, letterSpacing: 3 }
+      }, "ENTER")
+    )
+  );
+}
+
 function App() {
   const [tab, setTab] = useState("weekend");
   const [loading, setLoading] = useState(true);
+  const [unlocked, setUnlocked] = useState(() => {
+    try { return localStorage.getItem("katl:gate") === "1"; } catch (e) { return false; }
+  });
   const [players, setPlayers] = useState([]);
   const [avail, setAvail] = useState({});
   const [matches, setMatches] = useState([]);
   const [leaves, setLeaves] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [settlements, setSettlements] = useState([]);
+  const [cricheroes, setCricheroes] = useState(null);
   const [me, setMe] = useState(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [toast, setToast] = useState(null);
@@ -544,7 +605,7 @@ function App() {
         } catch {}
         setSaveVerified(verified);
       }
-      const [p, a, m, l, ex, st, meStored] = await Promise.all([loadMerged("katl:players", []), loadMerged("katl:avail", {}, "object"), loadMerged("katl:matches", []), loadMerged("katl:leaves", []), loadMerged("katl:expenses", []), loadMerged("katl:settlements", []), loadKey("katl:me", null)]);
+      const [p, a, m, l, ex, st, ch, meStored] = await Promise.all([loadMerged("katl:players", []), loadMerged("katl:avail", {}, "object"), loadMerged("katl:matches", []), loadMerged("katl:leaves", []), loadMerged("katl:expenses", []), loadMerged("katl:settlements", []), loadKey("katl:cricheroes", null), loadKey("katl:me", null)]);
       // Skip applying if user started editing mid-fetch.
       if (silent && editingRef.current > 0) {
         setSyncing(false);
@@ -557,6 +618,7 @@ function App() {
       setLeaves(cur => unionById(l, cur));
       setExpenses(cur => unionById(ex, cur));
       setSettlements(cur => unionById(st, cur));
+      if (ch) setCricheroes(ch);
       if (meStored) setMe(meStored);
       if (!silent) saveBoth("katl:players", squad);
       setLastSync(new Date().toLocaleTimeString("en-IN", {
@@ -570,6 +632,7 @@ function App() {
   useEffect(() => {
     reloadAll();
   }, []);
+  useEffect(() => { setPhotoMap(players); }, [players]);
 
   // Auto-refresh: quietly re-pull shared data every 20s so teammates' updates appear live.
   useEffect(() => {
@@ -696,11 +759,77 @@ function App() {
     setSettlements(next);
     if (!(await saveBoth("katl:settlements", next))) ping("Couldn't save — please try again");
   }
+  async function uploadPlayerPhoto(playerId, file) {
+    try {
+      // Resize to <=256px square-ish JPEG to keep it small.
+      const dataUrl = await new Promise((res, rej) => {
+        const img = new Image();
+        img.onload = () => {
+          const max = 256;
+          let { width: w, height: h } = img;
+          if (w > h) { if (w > max) { h = h * max / w; w = max; } }
+          else { if (h > max) { w = w * max / h; h = max; } }
+          const c = document.createElement("canvas");
+          c.width = w; c.height = h;
+          c.getContext("2d").drawImage(img, 0, 0, w, h);
+          res(c.toDataURL("image/jpeg", 0.82));
+        };
+        img.onerror = rej;
+        img.src = URL.createObjectURL(file);
+      });
+      const blob = await (await fetch(dataUrl)).blob();
+      const path = "player_" + playerId + "_" + Date.now() + ".jpg";
+      const up = await fetch(SUPABASE_URL + "/storage/v1/object/player-photos/" + path, {
+        method: "POST",
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "image/jpeg" },
+        body: blob,
+      });
+      if (!up.ok) { ping("Upload failed — check the storage bucket"); return; }
+      const publicUrl = SUPABASE_URL + "/storage/v1/object/public/player-photos/" + path;
+      const fresh = mergeWithSeed(await loadMerged("katl:players", []));
+      const base = unionById(fresh, players).map(p => p.id === playerId ? { ...p, photo: publicUrl } : p);
+      setPlayers(base); setPhotoMap(base);
+      const ok = await saveBoth("katl:players", base);
+      ping(ok ? "Photo updated ✓" : "Couldn't save — try again");
+    } catch (e) { ping("Photo error: " + (e.message || e)); }
+  }
+  async function removePlayerPhoto(playerId) {
+    const fresh = mergeWithSeed(await loadMerged("katl:players", []));
+    const base = unionById(fresh, players).map(p => p.id === playerId ? { ...p, photo: null } : p);
+    setPlayers(base); setPhotoMap(base);
+    await saveBoth("katl:players", base);
+    ping("Photo removed");
+  }
+  async function backupAll() {
+    ping("Preparing backup…");
+    const dump = { exported_at: new Date().toISOString(), app: "KATL Cricket", data: {} };
+    for (const key of SHARED_KEYS) {
+      try { dump.data[key] = await loadKey(key, null); } catch (e) { dump.data[key] = null; }
+    }
+    const blob = new Blob([JSON.stringify(dump, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+    a.href = URL.createObjectURL(blob);
+    a.download = "katl-backup-" + stamp + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    ping("Backup downloaded ✓");
+  }
+  async function saveCricheroes(obj) {
+    setCricheroes(obj);
+    const ok = await saveBoth("katl:cricheroes", obj);
+    ping(ok ? "CricHeroes updated" : "Couldn't save — please try again");
+  }
   async function chooseMe(id) {
     setMe(id);
     await saveKey("katl:me", id);
   }
   const onLeave = (playerId, dateISO) => leaves.some(l => l.playerId === playerId && l.from <= dateISO && dateISO <= l.to);
+  if (!unlocked) {
+    return /*#__PURE__*/React.createElement(GateScreen, {
+      onUnlock: () => { try { localStorage.setItem("katl:gate", "1"); } catch (e) {} setUnlocked(true); }
+    });
+  }
   if (loading) {
     return /*#__PURE__*/React.createElement("div", {
       className: "min-h-screen flex flex-col items-center justify-center gap-4 kc-body",
@@ -747,7 +876,7 @@ function App() {
       color: GOLD,
       letterSpacing: "0.3em"
     }
-  }, "KATL Cricket Club"), /*#__PURE__*/React.createElement("h1", {
+  }, "Weekend Cricket Club"), /*#__PURE__*/React.createElement("h1", {
     className: "kc-bebas leading-none",
     style: {
       fontSize: 52,
@@ -782,9 +911,18 @@ function App() {
       background: isAdmin ? "rgba(255,107,26,0.18)" : "rgba(0,0,0,0.4)",
       color: isAdmin ? ORANGE : "#888"
     }
-  }, isAdmin ? "🔓" : "🔒")))), /*#__PURE__*/React.createElement("nav", {
+  }, isAdmin ? "🔓" : "🔒"), isAdmin && /*#__PURE__*/React.createElement("button", {
+    onClick: backupAll,
+    title: "Download a backup of all team data",
+    className: "rounded-xl px-3 py-2 text-lg",
+    style: {
+      border: `1px solid ${BORDER}`,
+      background: "rgba(0,0,0,0.4)",
+      color: "#60A5FA"
+    }
+  }, "\u2B07\uFE0F")))), /*#__PURE__*/React.createElement("nav", {
     className: "max-w-3xl mx-auto px-4 flex gap-0 overflow-x-auto"
-  }, [["weekend", "Availability"], ["matches", "Schedule"], ["expenses", "Expenses"], ["stats", "Stats"], ["leaves", "Leaves"], ["squad", "Squad"]].map(([id, label]) => /*#__PURE__*/React.createElement("button", {
+  }, [["weekend", "Availability"], ["matches", "Schedule"], ["expenses", "Expenses"], ["stats", "Stats"], ["leaves", "Leaves"], ["squad", "Squad"], ["cricheroes", "CricHeroes"]].map(([id, label]) => /*#__PURE__*/React.createElement("button", {
     key: id,
     onClick: () => setTab(id),
     className: "kc-display uppercase whitespace-nowrap px-4 py-3 text-sm font-semibold transition-colors",
@@ -872,9 +1010,19 @@ function App() {
     chooseMe: chooseMe,
     matches: matches,
     isAdmin: isAdmin,
+    uploadPlayerPhoto: uploadPlayerPhoto,
+    removePlayerPhoto: removePlayerPhoto,
     beginEditing: beginEditing,
     endEditing: endEditing,
     requestAdmin: () => setAdminPrompt(true)
+  }), tab === "cricheroes" && /*#__PURE__*/React.createElement(CricHeroesTab, {
+    data: cricheroes,
+    players: players,
+    isAdmin: isAdmin,
+    onSave: saveCricheroes,
+    requestAdmin: () => setAdminPrompt(true),
+    beginEditing: beginEditing,
+    endEditing: endEditing
   })), adminPrompt && /*#__PURE__*/React.createElement(AdminPrompt, {
     onClose: () => setAdminPrompt(false),
     onSubmit: unlockAdmin
@@ -2829,6 +2977,578 @@ function LeavesTab({
   })))));
 }
 
+// ---------- CricHeroes (manual scorecard entry, admin-only) ----------
+function CricHeroesTab({
+  data,
+  players,
+  isAdmin,
+  onSave,
+  requestAdmin,
+  beginEditing,
+  endEditing
+}) {
+  const chmatches = data && data.chmatches || [];
+  const [open, setOpen] = React.useState(false);
+  const squadNames = [...players].map(p => p.name).sort((a, b) => a.localeCompare(b));
+
+  // ---- computed views from all match cards ----
+  const view = React.useMemo(() => {
+    const bat = {},
+      bowl = {};
+    let won = 0,
+      lost = 0,
+      draw = 0;
+    chmatches.forEach(m => {
+      if (m.outcome === "won") won++;else if (m.outcome === "lost") lost++;else if (m.outcome === "draw") draw++;
+      (m.batting || []).forEach(b => {
+        const k = b.player;
+        if (!k) return;
+        bat[k] = bat[k] || {
+          player: k,
+          runs: 0,
+          balls: 0,
+          fours: 0,
+          sixes: 0,
+          inns: 0
+        };
+        bat[k].runs += +b.runs || 0;
+        bat[k].balls += +b.balls || 0;
+        bat[k].fours += +b.fours || 0;
+        bat[k].sixes += +b.sixes || 0;
+        bat[k].inns += 1;
+      });
+      (m.bowling || []).forEach(w => {
+        const k = w.player;
+        if (!k) return;
+        bowl[k] = bowl[k] || {
+          player: k,
+          overs: 0,
+          maidens: 0,
+          runs: 0,
+          wickets: 0
+        };
+        bowl[k].overs += +w.overs || 0;
+        bowl[k].maidens += +w.maidens || 0;
+        bowl[k].runs += +w.runs || 0;
+        bowl[k].wickets += +w.wickets || 0;
+      });
+    });
+    const batting = Object.values(bat).sort((a, b) => b.runs - a.runs);
+    const bowling = Object.values(bowl).sort((a, b) => b.wickets - a.wickets || a.runs - b.runs);
+    return {
+      batting,
+      bowling,
+      played: chmatches.length,
+      won,
+      lost,
+      draw
+    };
+  }, [chmatches]);
+  const delMatch = id => {
+    if (!confirm("Delete this match card?")) return;
+    onSave({
+      ...(data || {}),
+      chmatches: chmatches.filter(m => m.id !== id)
+    });
+  };
+  const addMatch = m => {
+    onSave({
+      ...(data || {}),
+      source: "manual",
+      chmatches: [m, ...chmatches],
+      updated_at: new Date().toISOString()
+    });
+    setOpen(false);
+    endEditing && endEditing();
+  };
+  const Stat = ({
+    label,
+    value,
+    color
+  }) => /*#__PURE__*/React.createElement("div", {
+    className: "rounded-xl py-2 text-center",
+    style: {
+      background: "rgba(255,255,255,0.04)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "kc-bebas text-3xl",
+    style: {
+      color: color || "#fff"
+    }
+  }, value), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] uppercase text-neutral-500",
+    style: {
+      letterSpacing: 1
+    }
+  }, label));
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between flex-wrap gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "kc-bebas text-3xl",
+    style: {
+      letterSpacing: 2
+    }
+  }, "CRICK", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: ORANGE
+    }
+  }, "HEROES")), isAdmin ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setOpen(!open);
+      if (!open) beginEditing && beginEditing();else endEditing && endEditing();
+    },
+    className: "px-4 py-2 kc-display font-semibold uppercase",
+    style: {
+      ...btnOrange,
+      letterSpacing: 1
+    }
+  }, open ? "Cancel" : "+ Add match") : /*#__PURE__*/React.createElement("button", {
+    onClick: requestAdmin,
+    className: "px-3 py-2 kc-display text-sm uppercase rounded-xl",
+    style: {
+      border: `1px solid ${BORDER}`,
+      background: "#101010",
+      color: "#888",
+      letterSpacing: 1
+    }
+  }, "🔒 Admin to add")), open && isAdmin && /*#__PURE__*/React.createElement(MatchEntryForm, {
+    squadNames: squadNames,
+    onCancel: () => {
+      setOpen(false);
+      endEditing && endEditing();
+    },
+    onSave: addMatch
+  }), chmatches.length === 0 && !open ? /*#__PURE__*/React.createElement("div", {
+    className: "text-center py-12"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-neutral-500 text-sm max-w-sm mx-auto"
+  }, "No match data yet.", isAdmin ? " Tap “+ Add match” to enter your first scorecard." : " An admin will add match scorecards here.")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-4 gap-2"
+  }, /*#__PURE__*/React.createElement(Stat, {
+    label: "Played",
+    value: view.played
+  }), /*#__PURE__*/React.createElement(Stat, {
+    label: "Won",
+    value: view.won,
+    color: "#4ADE80"
+  }), /*#__PURE__*/React.createElement(Stat, {
+    label: "Lost",
+    value: view.lost,
+    color: "#f43f5e"
+  }), /*#__PURE__*/React.createElement(Stat, {
+    label: "Draw",
+    value: view.draw,
+    color: GOLD
+  })), view.batting.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "kc-display text-base font-bold uppercase text-neutral-400 mb-2",
+    style: {
+      letterSpacing: 2
+    }
+  }, "🏏 Batting"), /*#__PURE__*/React.createElement(Card, {
+    className: "p-0 overflow-hidden"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "px-3 py-1.5 grid grid-cols-12 text-[10px] uppercase text-neutral-500",
+    style: {
+      letterSpacing: 1,
+      background: "rgba(255,255,255,0.03)"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "col-span-5"
+  }, "Player"), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-2 text-right"
+  }, "Runs"), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-2 text-right"
+  }, "Balls"), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-1 text-right"
+  }, "4s"), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-2 text-right"
+  }, "6s")), view.batting.map((b, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "px-3 py-2 grid grid-cols-12 items-center text-sm",
+    style: {
+      borderTop: "1px solid rgba(255,255,255,0.05)"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "col-span-5 flex items-center gap-2 min-w-0"
+  }, /*#__PURE__*/React.createElement(Avatar, {
+    name: b.player,
+    size: 22,
+    fontSize: 9
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "truncate text-neutral-200"
+  }, b.player)), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-2 text-right kc-bebas text-lg",
+    style: {
+      color: GOLD
+    }
+  }, b.runs), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-2 text-right text-neutral-400"
+  }, b.balls), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-1 text-right text-neutral-400"
+  }, b.fours), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-2 text-right text-neutral-400"
+  }, b.sixes))))), view.bowling.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "kc-display text-base font-bold uppercase text-neutral-400 mb-2",
+    style: {
+      letterSpacing: 2
+    }
+  }, "🎯 Bowling"), /*#__PURE__*/React.createElement(Card, {
+    className: "p-0 overflow-hidden"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "px-3 py-1.5 grid grid-cols-12 text-[10px] uppercase text-neutral-500",
+    style: {
+      letterSpacing: 1,
+      background: "rgba(255,255,255,0.03)"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "col-span-5"
+  }, "Player"), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-2 text-right"
+  }, "Wkts"), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-2 text-right"
+  }, "Runs"), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-3 text-right"
+  }, "Overs")), view.bowling.map((w, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "px-3 py-2 grid grid-cols-12 items-center text-sm",
+    style: {
+      borderTop: "1px solid rgba(255,255,255,0.05)"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "col-span-5 flex items-center gap-2 min-w-0"
+  }, /*#__PURE__*/React.createElement(Avatar, {
+    name: w.player,
+    size: 22,
+    fontSize: 9
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "truncate text-neutral-200"
+  }, w.player)), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-2 text-right kc-bebas text-lg",
+    style: {
+      color: "#60A5FA"
+    }
+  }, w.wickets), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-2 text-right text-neutral-400"
+  }, w.runs), /*#__PURE__*/React.createElement("span", {
+    className: "col-span-3 text-right text-neutral-400"
+  }, w.overs))))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "kc-display text-base font-bold uppercase text-neutral-400 mb-2",
+    style: {
+      letterSpacing: 2
+    }
+  }, "Matches (", chmatches.length, ")"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, chmatches.map(m => {
+    const oc = m.outcome === "won" ? {
+      t: "Won",
+      c: "#4ADE80"
+    } : m.outcome === "lost" ? {
+      t: "Lost",
+      c: "#f43f5e"
+    } : {
+      t: "Draw",
+      c: GOLD
+    };
+    return /*#__PURE__*/React.createElement(Card, {
+      key: m.id,
+      className: "p-3",
+      style: {
+        borderLeft: `3px solid ${oc.c}`
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-start justify-between"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      className: "kc-display font-bold text-white text-base flex items-center gap-2"
+    }, m.opponent ? `vs ${m.opponent}` : "Match", /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] uppercase px-2 py-0.5 rounded-full font-bold",
+      style: {
+        letterSpacing: 1,
+        background: oc.c + "28",
+        color: oc.c
+      }
+    }, oc.t)), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-neutral-400 mt-0.5"
+    }, m.date ? fmt(m.date) : "", m.ourScore ? ` · KATL ${m.ourScore}` : "", m.oppScore ? ` vs ${m.oppScore}` : ""), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] text-neutral-500 mt-0.5"
+    }, (m.batting || []).length, " batting · ", (m.bowling || []).length, " bowling")), isAdmin && /*#__PURE__*/React.createElement("button", {
+      onClick: () => delMatch(m.id),
+      className: "text-neutral-600 hover:text-rose-400 text-xs"
+    }, "Delete")));
+  }))), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-neutral-600"
+  }, "Leaderboards are totalled automatically from every match scorecard you add.")));
+}
+
+// ---------- Match scorecard entry form ----------
+function MatchEntryForm({
+  squadNames,
+  onCancel,
+  onSave
+}) {
+  const [date, setDate] = React.useState(toISO(new Date()));
+  const [opponent, setOpponent] = React.useState("");
+  const [ourScore, setOurScore] = React.useState("");
+  const [oppScore, setOppScore] = React.useState("");
+  const [outcome, setOutcome] = React.useState("won");
+  const [batting, setBatting] = React.useState([{
+    player: "",
+    runs: "",
+    balls: "",
+    fours: "",
+    sixes: ""
+  }]);
+  const [bowling, setBowling] = React.useState([{
+    player: "",
+    overs: "",
+    maidens: "",
+    runs: "",
+    wickets: ""
+  }]);
+  const setB = (arr, setArr, i, key, val) => {
+    const n = [...arr];
+    n[i] = {
+      ...n[i],
+      [key]: val
+    };
+    setArr(n);
+  };
+  const addRow = (arr, setArr, blank) => setArr([...arr, blank]);
+  const delRow = (arr, setArr, i) => setArr(arr.filter((_, x) => x !== i));
+  const NameSelect = ({
+    value,
+    onChange
+  }) => /*#__PURE__*/React.createElement("select", {
+    value: value,
+    onChange: e => onChange(e.target.value),
+    style: {
+      ...inputStyle,
+      marginTop: 0
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Player…"), squadNames.map(n => /*#__PURE__*/React.createElement("option", {
+    key: n,
+    value: n
+  }, n)));
+  const Num = ({
+    value,
+    onChange,
+    ph
+  }) => /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    inputMode: "numeric",
+    value: value,
+    onChange: e => onChange(e.target.value),
+    placeholder: ph,
+    style: {
+      ...inputStyle,
+      marginTop: 0,
+      padding: "6px 8px",
+      textAlign: "center"
+    }
+  });
+  const save = () => {
+    if (!date) return;
+    const cleanBat = batting.filter(b => b.player).map(b => ({
+      ...b
+    }));
+    const cleanBowl = bowling.filter(b => b.player).map(b => ({
+      ...b
+    }));
+    onSave({
+      id: uid(),
+      date,
+      opponent: opponent.trim(),
+      ourScore: ourScore.trim(),
+      oppScore: oppScore.trim(),
+      outcome,
+      batting: cleanBat,
+      bowling: cleanBowl
+    });
+  };
+  const OUTCOMES = [["won", "Won", "#4ADE80"], ["lost", "Lost", "#f43f5e"], ["draw", "Draw", GOLD]];
+  return /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 space-y-4 pop",
+    style: {
+      borderColor: "rgba(255,107,26,0.45)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "text-sm text-neutral-400"
+  }, "Date", /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: date,
+    onChange: e => setDate(e.target.value),
+    style: inputStyle
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "text-sm text-neutral-400"
+  }, "Opponent", /*#__PURE__*/React.createElement("input", {
+    value: opponent,
+    onChange: e => setOpponent(e.target.value),
+    placeholder: "Whitefield XI",
+    style: inputStyle
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "text-sm text-neutral-400"
+  }, "KATL score", /*#__PURE__*/React.createElement("input", {
+    value: ourScore,
+    onChange: e => setOurScore(e.target.value),
+    placeholder: "142/6",
+    style: inputStyle
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "text-sm text-neutral-400"
+  }, "Opponent score", /*#__PURE__*/React.createElement("input", {
+    value: oppScore,
+    onChange: e => setOppScore(e.target.value),
+    placeholder: "138/9",
+    style: inputStyle
+  }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm text-neutral-400 mb-1"
+  }, "Result"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, OUTCOMES.map(([k, l, c]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    onClick: () => setOutcome(k),
+    className: "flex-1 py-2 rounded-xl kc-display uppercase text-sm font-semibold",
+    style: outcome === k ? {
+      background: c,
+      color: "#0a0a0a"
+    } : {
+      background: "#101010",
+      border: "1px solid rgba(255,255,255,0.14)",
+      color: "#999"
+    }
+  }, l)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "kc-display text-sm font-bold uppercase text-neutral-300 mb-2",
+    style: {
+      letterSpacing: 1
+    }
+  }, "🏏 Batting"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, batting.map((b, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "grid grid-cols-12 gap-1.5 items-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "col-span-4"
+  }, /*#__PURE__*/React.createElement(NameSelect, {
+    value: b.player,
+    onChange: v => setB(batting, setBatting, i, "player", v)
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "col-span-2"
+  }, /*#__PURE__*/React.createElement(Num, {
+    value: b.runs,
+    onChange: v => setB(batting, setBatting, i, "runs", v),
+    ph: "R"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "col-span-2"
+  }, /*#__PURE__*/React.createElement(Num, {
+    value: b.balls,
+    onChange: v => setB(batting, setBatting, i, "balls", v),
+    ph: "B"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "col-span-1"
+  }, /*#__PURE__*/React.createElement(Num, {
+    value: b.fours,
+    onChange: v => setB(batting, setBatting, i, "fours", v),
+    ph: "4"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "col-span-2"
+  }, /*#__PURE__*/React.createElement(Num, {
+    value: b.sixes,
+    onChange: v => setB(batting, setBatting, i, "sixes", v),
+    ph: "6"
+  })), /*#__PURE__*/React.createElement("button", {
+    className: "col-span-1 text-neutral-600 hover:text-rose-400",
+    onClick: () => delRow(batting, setBatting, i)
+  }, "✕")))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => addRow(batting, setBatting, {
+      player: "",
+      runs: "",
+      balls: "",
+      fours: "",
+      sixes: ""
+    }),
+    className: "mt-2 text-sm",
+    style: {
+      color: GOLD
+    }
+  }, "+ Add batter")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "kc-display text-sm font-bold uppercase text-neutral-300 mb-2",
+    style: {
+      letterSpacing: 1
+    }
+  }, "🎯 Bowling"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, bowling.map((w, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "grid grid-cols-12 gap-1.5 items-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "col-span-4"
+  }, /*#__PURE__*/React.createElement(NameSelect, {
+    value: w.player,
+    onChange: v => setB(bowling, setBowling, i, "player", v)
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "col-span-2"
+  }, /*#__PURE__*/React.createElement(Num, {
+    value: w.overs,
+    onChange: v => setB(bowling, setBowling, i, "overs", v),
+    ph: "O"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "col-span-2"
+  }, /*#__PURE__*/React.createElement(Num, {
+    value: w.maidens,
+    onChange: v => setB(bowling, setBowling, i, "maidens", v),
+    ph: "M"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "col-span-1"
+  }, /*#__PURE__*/React.createElement(Num, {
+    value: w.runs,
+    onChange: v => setB(bowling, setBowling, i, "runs", v),
+    ph: "R"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "col-span-2"
+  }, /*#__PURE__*/React.createElement(Num, {
+    value: w.wickets,
+    onChange: v => setB(bowling, setBowling, i, "wickets", v),
+    ph: "W"
+  })), /*#__PURE__*/React.createElement("button", {
+    className: "col-span-1 text-neutral-600 hover:text-rose-400",
+    onClick: () => delRow(bowling, setBowling, i)
+  }, "✕")))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => addRow(bowling, setBowling, {
+      player: "",
+      overs: "",
+      maidens: "",
+      runs: "",
+      wickets: ""
+    }),
+    className: "mt-2 text-sm",
+    style: {
+      color: GOLD
+    }
+  }, "+ Add bowler")), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 pt-1"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onCancel,
+    className: "flex-1 py-2 rounded-xl kc-display uppercase text-sm",
+    style: {
+      border: "1px solid rgba(255,255,255,0.15)",
+      background: "#101010",
+      color: "#999",
+      letterSpacing: 1
+    }
+  }, "Cancel"), /*#__PURE__*/React.createElement("button", {
+    onClick: save,
+    className: "flex-1 py-2 kc-bebas text-lg",
+    style: {
+      ...btnOrange,
+      letterSpacing: 2
+    }
+  }, "SAVE MATCH")));
+}
+
 // ---------- Squad ----------
 function SquadTab({
   players,
@@ -2838,6 +3558,8 @@ function SquadTab({
   chooseMe,
   matches,
   isAdmin,
+  uploadPlayerPhoto,
+  removePlayerPhoto,
   beginEditing,
   endEditing,
   requestAdmin
@@ -2937,7 +3659,18 @@ function SquadTab({
         color: "#4ADE80"
       },
       className: "hover:underline"
-    }, "This is me"), isAdmin && /*#__PURE__*/React.createElement("button", {
+    }, "This is me"), isAdmin && /*#__PURE__*/React.createElement("label", {
+      className: "cursor-pointer hover:underline",
+      style: { color: "#60A5FA" }
+    }, p.photo ? "Change photo" : "Add photo", /*#__PURE__*/React.createElement("input", {
+      type: "file",
+      accept: "image/*",
+      style: { display: "none" },
+      onChange: (e) => { const f = e.target.files && e.target.files[0]; if (f) uploadPlayerPhoto(p.id, f); e.target.value = ""; }
+    })), isAdmin && p.photo && /*#__PURE__*/React.createElement("button", {
+      onClick: () => { if (confirm("Remove " + p.name + "'s photo?")) removePlayerPhoto(p.id); },
+      className: "text-neutral-600 hover:text-rose-400"
+    }, "Remove photo"), isAdmin && /*#__PURE__*/React.createElement("button", {
       onClick: () => {
         if (confirm(`Remove ${p.name} from the squad?`)) removePlayer(p.id);
       },
@@ -2985,6 +3718,11 @@ function SquadTab({
 }
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(/*#__PURE__*/React.createElement(App, null));
+
+
+
+
+
 
 
 

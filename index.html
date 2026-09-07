@@ -44,6 +44,7 @@
 
 
 
+
 const {
   useState,
   useEffect,
@@ -1232,11 +1233,13 @@ function WeekendTab({
     const nameOf = (id) => (players.find((p) => p.id === id) || {}).name || "?";
     const inList = players.filter((p) => !onLeave(p.id, dateISO) && day[p.id] === "in").map((p) => p.name);
     const maybeList = players.filter((p) => !onLeave(p.id, dateISO) && day[p.id] === "maybe").map((p) => p.name);
+    const outList = players.filter((p) => onLeave(p.id, dateISO) || day[p.id] === "out").map((p) => p.name);
     const fixture = (matches || []).find((m) => m.date === dateISO && m.status !== "completed");
     let msg = "🏏 *KATL — " + dLabel + "*\n";
     if (fixture) msg += (fixture.opponent ? "vs " + fixture.opponent : "Match") + (fixture.time ? " ⏰ " + fixture.time : "") + (fixture.venue ? " 📍 " + fixture.venue : "") + "\n";
     msg += "\n✅ IN (" + inList.length + "): " + (inList.join(", ") || "—") + "\n";
     if (maybeList.length) msg += "🤔 MAYBE (" + maybeList.length + "): " + maybeList.join(", ") + "\n";
+    if (outList.length) msg += "❌ OUT (" + outList.length + "): " + outList.join(", ") + "\n";
     msg += "\nMark yourself 👉 " + APP_URL;
     openWhatsApp(msg);
   };
@@ -3718,6 +3721,7 @@ function SquadTab({
 }
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(/*#__PURE__*/React.createElement(App, null));
+
 
 
 

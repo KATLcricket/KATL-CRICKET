@@ -45,6 +45,8 @@
 
 
 
+
+
 const {
   useState,
   useEffect,
@@ -270,7 +272,7 @@ const sleep = ms => new Promise(res => setTimeout(res, ms));
 const SUPABASE_URL = "https://efutoaoejjnwqujkyjzf.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_cNhggrxPsGl-DssQNP8YVQ_6znHS2tg";
 // Keys that belong to the whole team (shared in Supabase).
-const SHARED_KEYS = ["katl:players", "katl:avail", "katl:matches", "katl:leaves", "katl:expenses", "katl:settlements", "katl:cricheroes"];
+const SHARED_KEYS = ["katl:players", "katl:avail", "katl:matches", "katl:leaves", "katl:expenses", "katl:settlements", "katl:cricheroes", "katl:birthdays"];
 const supaConfigured = () => SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("YOUR-PROJECT") && !SUPABASE_ANON_KEY.includes("YOUR-PUBLIC");
 const supaHeaders = () => ({
   "apikey": SUPABASE_ANON_KEY,
@@ -540,6 +542,7 @@ function App() {
   const [expenses, setExpenses] = useState([]);
   const [settlements, setSettlements] = useState([]);
   const [cricheroes, setCricheroes] = useState(null);
+  const [extraBdays, setExtraBdays] = useState([]);
   const [me, setMe] = useState(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [toast, setToast] = useState(null);
@@ -606,7 +609,7 @@ function App() {
         } catch {}
         setSaveVerified(verified);
       }
-      const [p, a, m, l, ex, st, ch, meStored] = await Promise.all([loadMerged("katl:players", []), loadMerged("katl:avail", {}, "object"), loadMerged("katl:matches", []), loadMerged("katl:leaves", []), loadMerged("katl:expenses", []), loadMerged("katl:settlements", []), loadKey("katl:cricheroes", null), loadKey("katl:me", null)]);
+      const [p, a, m, l, ex, st, ch, bd, meStored] = await Promise.all([loadMerged("katl:players", []), loadMerged("katl:avail", {}, "object"), loadMerged("katl:matches", []), loadMerged("katl:leaves", []), loadMerged("katl:expenses", []), loadMerged("katl:settlements", []), loadKey("katl:cricheroes", null), loadMerged("katl:birthdays", []), loadKey("katl:me", null)]);
       // Skip applying if user started editing mid-fetch.
       if (silent && editingRef.current > 0) {
         setSyncing(false);
@@ -620,6 +623,7 @@ function App() {
       setExpenses(cur => unionById(ex, cur));
       setSettlements(cur => unionById(st, cur));
       if (ch) setCricheroes(ch);
+      setExtraBdays(cur => unionById(bd || [], cur));
       if (meStored) setMe(meStored);
       if (!silent) saveBoth("katl:players", squad);
       setLastSync(new Date().toLocaleTimeString("en-IN", {
@@ -816,6 +820,19 @@ function App() {
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     ping("Backup downloaded ✓");
   }
+  async function addBirthday(entry) {
+    const fresh = await loadMerged("katl:birthdays", []);
+    const next = [...unionById(fresh, extraBdays), entry];
+    setExtraBdays(next);
+    const ok = await saveBoth("katl:birthdays", next);
+    ping(ok ? "Birthday added 🎂" : "Couldn't save — try again");
+  }
+  async function deleteBirthday(id) {
+    const fresh = await loadMerged("katl:birthdays", []);
+    const next = unionById(fresh, extraBdays).filter(b => b.id !== id);
+    setExtraBdays(next);
+    await saveBoth("katl:birthdays", next);
+  }
   async function saveCricheroes(obj) {
     setCricheroes(obj);
     const ok = await saveBoth("katl:cricheroes", obj);
@@ -923,7 +940,7 @@ function App() {
     }
   }, "\u2B07\uFE0F")))), /*#__PURE__*/React.createElement("nav", {
     className: "max-w-3xl mx-auto px-4 flex gap-0 overflow-x-auto"
-  }, [["weekend", "Availability"], ["matches", "Schedule"], ["expenses", "Expenses"], ["stats", "Stats"], ["leaves", "Leaves"], ["squad", "Squad"], ["cricheroes", "CricHeroes"]].map(([id, label]) => /*#__PURE__*/React.createElement("button", {
+  }, [["weekend", "Availability"], ["matches", "Schedule"], ["expenses", "Expenses"], ["stats", "Stats"], ["leaves", "Leaves"], ["squad", "Squad"], ["cricheroes", "CricHeroes"], ["birthdays", "Birthdays"]].map(([id, label]) => /*#__PURE__*/React.createElement("button", {
     key: id,
     onClick: () => setTab(id),
     className: "kc-display uppercase whitespace-nowrap px-4 py-3 text-sm font-semibold transition-colors",
@@ -954,7 +971,15 @@ function App() {
     }
   }, "admin 🔓") : "viewer", " · last sync ", lastSync || "—"), /*#__PURE__*/React.createElement("main", {
     className: "max-w-3xl mx-auto px-4 py-6 pb-24"
-  }, tab === "weekend" && /*#__PURE__*/React.createElement(WeekendTab, {
+  }, (() => {
+    const t = new Date(); const tm = t.getMonth() + 1, td = t.getDate();
+    const todays = [...KATL_BIRTHDAYS, ...(extraBdays || [])].filter(b => b.m === tm && b.d === td).map(b => b.name);
+    if (!todays.length) return null;
+    return /*#__PURE__*/React.createElement("div", {
+      className: "mb-4 rounded-xl px-4 py-3 text-center kc-display font-bold uppercase pop",
+      style: { letterSpacing: 1, background: "linear-gradient(90deg, rgba(255,107,26,0.2), rgba(255,184,0,0.2))", border: "1px solid rgba(255,184,0,0.5)", color: GOLD }
+    }, "🎉🎂 Happy Birthday " + todays.join(" & ") + "! 🎂🎉");
+  })(), tab === "weekend" && /*#__PURE__*/React.createElement(WeekendTab, {
     week: week,
     weekOffset: weekOffset,
     setWeekOffset: setWeekOffset,
@@ -1021,6 +1046,14 @@ function App() {
     players: players,
     isAdmin: isAdmin,
     onSave: saveCricheroes,
+    requestAdmin: () => setAdminPrompt(true),
+    beginEditing: beginEditing,
+    endEditing: endEditing
+  }), tab === "birthdays" && /*#__PURE__*/React.createElement(BirthdaysTab, {
+    extra: extraBdays,
+    isAdmin: isAdmin,
+    addBirthday: addBirthday,
+    deleteBirthday: deleteBirthday,
     requestAdmin: () => setAdminPrompt(true),
     beginEditing: beginEditing,
     endEditing: endEditing
@@ -3552,6 +3585,387 @@ function MatchEntryForm({
   }, "SAVE MATCH")));
 }
 
+// ---------- Birthdays ----------
+const KATL_BIRTHDAYS = [{
+  name: "Amit",
+  m: 1,
+  d: 9
+}, {
+  name: "Suraj",
+  m: 1,
+  d: 26
+}, {
+  name: "Datta",
+  m: 2,
+  d: 1
+}, {
+  name: "Paresh",
+  m: 2,
+  d: 27
+}, {
+  name: "Mohit G",
+  m: 2,
+  d: 27
+}, {
+  name: "Chetan",
+  m: 3,
+  d: 10
+}, {
+  name: "Prashant",
+  m: 3,
+  d: 21
+}, {
+  name: "Aadhar",
+  m: 3,
+  d: 31
+}, {
+  name: "Dipayan",
+  m: 4,
+  d: 24
+}, {
+  name: "Romy",
+  m: 5,
+  d: 1
+}, {
+  name: "Aditya",
+  m: 5,
+  d: 2
+}, {
+  name: "Rishav",
+  m: 6,
+  d: 5
+}, {
+  name: "Akash",
+  m: 6,
+  d: 21
+}, {
+  name: "SRV",
+  m: 7,
+  d: 1
+}, {
+  name: "Shiv",
+  m: 7,
+  d: 12
+}, {
+  name: "Sambit",
+  m: 7,
+  d: 13
+}, {
+  name: "Mohit Rana",
+  m: 8,
+  d: 9
+}, {
+  name: "Sagar",
+  m: 8,
+  d: 15
+}, {
+  name: "Nikhil",
+  m: 8,
+  d: 17
+}, {
+  name: "Abhinav S",
+  m: 8,
+  d: 18
+}, {
+  name: "Abhinav T",
+  m: 8,
+  d: 19
+}, {
+  name: "Prashant G",
+  m: 9,
+  d: 2
+}, {
+  name: "Mohit S",
+  m: 9,
+  d: 7
+}, {
+  name: "Ashutosh Gupta",
+  m: 9,
+  d: 10
+}, {
+  name: "Rahul Arora",
+  m: 9,
+  d: 10
+}, {
+  name: "Vipul",
+  m: 9,
+  d: 17
+}, {
+  name: "Bipul",
+  m: 9,
+  d: 17
+}, {
+  name: "Vishal S",
+  m: 9,
+  d: 19
+}, {
+  name: "Praveen",
+  m: 9,
+  d: 20
+}, {
+  name: "Shanky",
+  m: 9,
+  d: 21
+}, {
+  name: "Aman",
+  m: 9,
+  d: 23
+}, {
+  name: "Abhishek",
+  m: 10,
+  d: 1
+}, {
+  name: "Brijesh",
+  m: 10,
+  d: 2
+}, {
+  name: "Ritik",
+  m: 10,
+  d: 27
+}, {
+  name: "Ashish",
+  m: 11,
+  d: 12
+}, {
+  name: "Guna",
+  m: 11,
+  d: 14
+}, {
+  name: "Shravan",
+  m: 11,
+  d: 15
+}, {
+  name: "Satrajit",
+  m: 12,
+  d: 1
+}, {
+  name: "Anurag P",
+  m: 12,
+  d: 18
+}];
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+function bdaySuffix(d) {
+  if (d >= 11 && d <= 13) return "th";
+  const l = d % 10;
+  return l === 1 ? "st" : l === 2 ? "nd" : l === 3 ? "rd" : "th";
+}
+function BirthdaysTab({
+  extra,
+  isAdmin,
+  addBirthday,
+  deleteBirthday,
+  requestAdmin,
+  beginEditing,
+  endEditing
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [month, setMonth] = React.useState(1);
+  const [day, setDay] = React.useState("");
+  const all = [...KATL_BIRTHDAYS, ...(extra || []).map(e => ({
+    name: e.name,
+    m: e.m,
+    d: e.d,
+    id: e.id
+  }))];
+  const today = new Date();
+  const tM = today.getMonth() + 1,
+    tD = today.getDate();
+  const daysAway = b => {
+    let y = today.getFullYear();
+    let dt = new Date(y, b.m - 1, b.d);
+    const todayMid = new Date(y, tM - 1, tD);
+    if (dt < todayMid) dt = new Date(y + 1, b.m - 1, b.d);
+    return Math.round((dt - todayMid) / 86400000);
+  };
+  const upcoming = all.map(b => ({
+    ...b,
+    away: daysAway(b)
+  })).sort((a, b) => a.away - b.away).slice(0, 5);
+  const dayLabel = b => b.d + bdaySuffix(b.d) + " " + MONTH_NAMES[b.m - 1].slice(0, 3);
+  const awayLabel = n => n === 0 ? "Today! 🎉" : n === 1 ? "Tomorrow" : "in " + n + " days";
+  const byMonth = {};
+  MONTH_NAMES.forEach((_, i) => byMonth[i + 1] = []);
+  all.forEach(b => byMonth[b.m].push(b));
+  Object.values(byMonth).forEach(arr => arr.sort((a, b) => a.d - b.d));
+  const save = () => {
+    const dn = parseInt(day, 10);
+    if (!name.trim() || !dn || dn < 1 || dn > 31) return;
+    addBirthday({
+      id: Math.random().toString(36).slice(2, 9) + Date.now().toString(36),
+      name: name.trim(),
+      m: +month,
+      d: dn
+    });
+    setName("");
+    setDay("");
+    setMonth(1);
+    setOpen(false);
+    endEditing && endEditing();
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between flex-wrap gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "kc-bebas text-3xl",
+    style: {
+      letterSpacing: 2
+    }
+  }, "BIRTH", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: ORANGE
+    }
+  }, "DAYS")), isAdmin ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setOpen(!open);
+      if (!open) beginEditing && beginEditing();else endEditing && endEditing();
+    },
+    className: "px-4 py-2 kc-display font-semibold uppercase",
+    style: {
+      ...btnOrange,
+      letterSpacing: 1
+    }
+  }, open ? "Cancel" : "+ Add") : /*#__PURE__*/React.createElement("button", {
+    onClick: requestAdmin,
+    className: "px-3 py-2 kc-display text-sm uppercase rounded-xl",
+    style: {
+      border: `1px solid ${BORDER}`,
+      background: "#101010",
+      color: "#888",
+      letterSpacing: 1
+    }
+  }, "🔒 Admin to add")), open && isAdmin && /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 space-y-3 pop",
+    style: {
+      borderColor: "rgba(255,107,26,0.45)"
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "text-sm text-neutral-400 block"
+  }, "Name", /*#__PURE__*/React.createElement("input", {
+    value: name,
+    onChange: e => setName(e.target.value),
+    placeholder: "Player name",
+    style: inputStyle
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "text-sm text-neutral-400"
+  }, "Month", /*#__PURE__*/React.createElement("select", {
+    value: month,
+    onChange: e => setMonth(e.target.value),
+    style: inputStyle
+  }, MONTH_NAMES.map((mn, i) => /*#__PURE__*/React.createElement("option", {
+    key: i,
+    value: i + 1
+  }, mn)))), /*#__PURE__*/React.createElement("label", {
+    className: "text-sm text-neutral-400"
+  }, "Day", /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    inputMode: "numeric",
+    value: day,
+    onChange: e => setDay(e.target.value),
+    placeholder: "1-31",
+    min: "1",
+    max: "31",
+    style: inputStyle
+  }))), /*#__PURE__*/React.createElement("button", {
+    onClick: save,
+    className: "w-full py-2.5 kc-bebas text-xl",
+    style: {
+      ...btnOrange,
+      letterSpacing: 3
+    }
+  }, "SAVE BIRTHDAY")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "kc-display text-base font-bold uppercase text-neutral-400 mb-2",
+    style: {
+      letterSpacing: 2
+    }
+  }, "🎂 Coming up"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, upcoming.map((b, i) => /*#__PURE__*/React.createElement(Card, {
+    key: i,
+    className: "px-4 py-3 flex items-center justify-between",
+    style: {
+      borderLeft: `3px solid ${b.away === 0 ? "#4ADE80" : ORANGE}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement(Avatar, {
+    name: b.name,
+    size: 38,
+    fontSize: 14
+  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-medium text-neutral-100"
+  }, b.name), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-neutral-500"
+  }, dayLabel(b)))), /*#__PURE__*/React.createElement("div", {
+    className: "kc-display text-sm font-bold uppercase",
+    style: {
+      letterSpacing: 1,
+      color: b.away === 0 ? "#4ADE80" : b.away <= 7 ? GOLD : "#888"
+    }
+  }, awayLabel(b.away)))))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "kc-display text-base font-bold uppercase text-neutral-400 mb-2",
+    style: {
+      letterSpacing: 2
+    }
+  }, "All the year"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, MONTH_NAMES.map((mn, idx) => {
+    const list = byMonth[idx + 1];
+    if (!list.length) return null;
+    const isThisMonth = idx + 1 === tM;
+    return /*#__PURE__*/React.createElement(Card, {
+      key: mn,
+      className: "p-0 overflow-hidden"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "px-4 py-2 kc-display uppercase text-sm font-bold flex items-center gap-2",
+      style: {
+        letterSpacing: 2,
+        color: isThisMonth ? ORANGE : "#bbb",
+        background: "rgba(255,255,255,0.03)"
+      }
+    }, "🗓 ", mn, isThisMonth ? " · this month" : ""), list.map((b, i) => {
+      const isToday = b.m === tM && b.d === tD;
+      return /*#__PURE__*/React.createElement("div", {
+        key: i,
+        className: "px-4 py-2 flex items-center justify-between",
+        style: {
+          borderTop: "1px solid rgba(255,255,255,0.05)"
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "flex items-center gap-2.5"
+      }, /*#__PURE__*/React.createElement(Avatar, {
+        name: b.name,
+        size: 26,
+        fontSize: 10
+      }), /*#__PURE__*/React.createElement("span", {
+        className: "text-sm text-neutral-200"
+      }, b.name), isToday && /*#__PURE__*/React.createElement("span", {
+        className: "text-[10px] uppercase px-2 py-0.5 rounded-full",
+        style: {
+          background: "rgba(74,222,128,0.18)",
+          color: "#4ADE80",
+          letterSpacing: 1
+        }
+      }, "Today 🎉")), /*#__PURE__*/React.createElement("div", {
+        className: "flex items-center gap-3"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "text-sm tabular-nums",
+        style: {
+          color: GOLD
+        }
+      }, b.d, bdaySuffix(b.d)), isAdmin && b.id && /*#__PURE__*/React.createElement("button", {
+        onClick: () => {
+          if (confirm("Delete " + b.name + "'s birthday?")) deleteBirthday(b.id);
+        },
+        className: "text-neutral-600 hover:text-rose-400 text-xs"
+      }, "✕")));
+    }));
+  }))));
+}
+
 // ---------- Squad ----------
 function SquadTab({
   players,
@@ -3721,6 +4135,8 @@ function SquadTab({
 }
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(/*#__PURE__*/React.createElement(App, null));
+
+
 
 
 

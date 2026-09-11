@@ -3,15 +3,27 @@
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+function corsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigin = Deno.env.get("APP_ORIGIN");
+  const allowOrigin = allowedOrigin && origin === allowedOrigin ? allowedOrigin : "null";
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+  };
+}
 
-// Only the team admin (who knows the secret) may broadcast.
-export function isAuthorized(providedSecret: unknown, expectedSecret: string | undefined): boolean {
-  return providedSecret !== undefined && providedSecret === expectedSecret;
+// Admin authorization is based on a verified Supabase Auth JWT and the user's
+// server-controlled app_metadata.role claim. No shared admin secret is accepted.
+export function isAdminRole(role: unknown): boolean {
+  return role === "admin" || role === "super_admin";
+}
+
+export function extractBearerToken(header: string | null): string | null {
+  if (!header) return null;
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() || null : null;
 }
 
 // 404/410 = subscription expired; anything else (network blip, 500, etc.) should be left alone.
@@ -24,14 +36,46 @@ export function buildPayload(title?: string, body?: string, url?: string): strin
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  const headers = corsHeaders(req.headers.get("Origin"));
+  if (req.method === "OPTIONS") return new Response("ok", { headers });
 
   try {
-    const { title, body, url, adminSecret } = await req.json();
-
-    if (!isAuthorized(adminSecret, Deno.env.get("ADMIN_SEND_SECRET"))) {
-      return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: cors });
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({ error: "method_not_allowed" }), {
+        status: 405,
+        headers: { ...headers, "Content-Type": "application/json" },
+      });
     }
+
+    const token = extractBearerToken(req.headers.get("Authorization"));
+    if (!token) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { ...headers, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+      throw new Error("Required Supabase environment variables are not configured");
+    }
+
+    // This client is used only to verify the caller's JWT.
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: { user }, error: userError } = await authClient.auth.getUser(token);
+
+    if (userError || !user || !isAdminRole(user.app_metadata?.role)) {
+      return new Response(JSON.stringify({ error: "forbidden" }), {
+        status: 403,
+        headers: { ...headers, "Content-Type": "application/json" },
+      });
+    }
+
+    const { title, body, url } = await req.json();
 
     webpush.setVapidDetails(
       "mailto:katl@example.com",
@@ -39,10 +83,10 @@ Deno.serve(async (req) => {
       Deno.env.get("VAPID_PRIVATE_KEY")!,
     );
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    // Service-role access is intentionally kept server-side and is never sent to the browser.
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
     const { data: subs, error } = await supabase.from("push_subs").select("id, sub");
     if (error) throw error;
@@ -63,9 +107,13 @@ Deno.serve(async (req) => {
     }));
 
     return new Response(JSON.stringify({ sent, removed, total: subs?.length || 0 }), {
-      headers: { ...cors, "Content-Type": "application/json" },
+      headers: { ...headers, "Content-Type": "application/json" },
     });
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), { status: 500, headers: cors });
+    console.error("send-push failed", e);
+    return new Response(JSON.stringify({ error: "internal_error" }), {
+      status: 500,
+      headers: { ...headers, "Content-Type": "application/json" },
+    });
   }
 });

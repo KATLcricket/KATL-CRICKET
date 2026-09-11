@@ -47,6 +47,8 @@
 
 
 
+
+
 const {
   useState,
   useEffect,
@@ -940,7 +942,7 @@ function App() {
     }
   }, "\u2B07\uFE0F")))), /*#__PURE__*/React.createElement("nav", {
     className: "max-w-3xl mx-auto px-4 flex gap-0 overflow-x-auto"
-  }, [["weekend", "Availability"], ["matches", "Schedule"], ["expenses", "Expenses"], ["stats", "Stats"], ["leaves", "Leaves"], ["squad", "Squad"], ["cricheroes", "CricHeroes"], ["birthdays", "Birthdays"]].map(([id, label]) => /*#__PURE__*/React.createElement("button", {
+  }, [["weekend", "Availability"], ["matches", "Schedule"], ["expenses", "Expenses"], ["leaves", "Leaves"], ["squad", "Squad"], ["birthdays", "Birthdays"]].map(([id, label]) => /*#__PURE__*/React.createElement("button", {
     key: id,
     onClick: () => setTab(id),
     className: "kc-display uppercase whitespace-nowrap px-4 py-3 text-sm font-semibold transition-colors",
@@ -1002,10 +1004,6 @@ function App() {
     beginEditing: beginEditing,
     endEditing: endEditing,
     requestAdmin: () => setAdminPrompt(true)
-  }), tab === "stats" && /*#__PURE__*/React.createElement(StatsTab, {
-    players: players,
-    matches: matches,
-    avail: avail
   }), tab === "expenses" && /*#__PURE__*/React.createElement(ExpensesTab, {
     players: players,
     matches: matches,
@@ -1041,14 +1039,6 @@ function App() {
     beginEditing: beginEditing,
     endEditing: endEditing,
     requestAdmin: () => setAdminPrompt(true)
-  }), tab === "cricheroes" && /*#__PURE__*/React.createElement(CricHeroesTab, {
-    data: cricheroes,
-    players: players,
-    isAdmin: isAdmin,
-    onSave: saveCricheroes,
-    requestAdmin: () => setAdminPrompt(true),
-    beginEditing: beginEditing,
-    endEditing: endEditing
   }), tab === "birthdays" && /*#__PURE__*/React.createElement(BirthdaysTab, {
     extra: extraBdays,
     isAdmin: isAdmin,
@@ -4135,6 +4125,8 @@ function SquadTab({
 }
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(/*#__PURE__*/React.createElement(App, null));
+
+
 
 
 

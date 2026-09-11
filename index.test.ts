@@ -1,57 +1,67 @@
-// Unit tests for the pure logic extracted from the send-push Edge Function.
+// Unit tests for pure logic extracted from the send-push Edge Function.
 // Run with: deno test index.test.ts
 import { deepStrictEqual as assertEquals } from "node:assert/strict";
-import { isAuthorized, shouldRemoveSubscription, buildPayload } from "./index.ts";
+import { isAdminRole, extractBearerToken, shouldRemoveSubscription, buildPayload } from "./index.ts";
 
-Deno.test("isAuthorized - rejects when secret does not match", () => {
-  assertEquals(isAuthorized("wrong-secret", "correct-secret"), false);
+denotest("isAdminRole - accepts admin", () => {
+  assertEquals(isAdminRole("admin"), true);
 });
 
-Deno.test("isAuthorized - accepts when secret matches exactly", () => {
-  assertEquals(isAuthorized("correct-secret", "correct-secret"), true);
+denotest("isAdminRole - accepts super_admin", () => {
+  assertEquals(isAdminRole("super_admin"), true);
 });
 
-Deno.test("isAuthorized - rejects when no secret is provided", () => {
-  assertEquals(isAuthorized(undefined, "correct-secret"), false);
+denotest("isAdminRole - rejects member", () => {
+  assertEquals(isAdminRole("member"), false);
 });
 
-Deno.test("isAuthorized - rejects when neither side has a secret configured", () => {
-  // Regression guard: previously `undefined !== undefined` was falsy, which
-  // let unauthenticated requests through whenever ADMIN_SEND_SECRET was unset.
-  assertEquals(isAuthorized(undefined, undefined), false);
+denotest("isAdminRole - rejects missing role", () => {
+  assertEquals(isAdminRole(undefined), false);
 });
 
-Deno.test("isAuthorized - rejects empty string secret against configured secret", () => {
-  assertEquals(isAuthorized("", "correct-secret"), false);
+denotest("extractBearerToken - extracts a bearer token", () => {
+  assertEquals(extractBearerToken("Bearer abc123"), "abc123");
 });
 
-Deno.test("shouldRemoveSubscription - true for 404 (not found)", () => {
+denotest("extractBearerToken - is case insensitive", () => {
+  assertEquals(extractBearerToken("bearer abc123"), "abc123");
+});
+
+denotest("extractBearerToken - rejects missing header", () => {
+  assertEquals(extractBearerToken(null), null);
+});
+
+denotest("extractBearerToken - rejects malformed header", () => {
+  assertEquals(extractBearerToken("Basic abc123"), null);
+});
+
+denotest("shouldRemoveSubscription - true for 404 (not found)", () => {
   assertEquals(shouldRemoveSubscription(404), true);
 });
 
-Deno.test("shouldRemoveSubscription - true for 410 (gone)", () => {
+denotest("shouldRemoveSubscription - true for 410 (gone)", () => {
   assertEquals(shouldRemoveSubscription(410), true);
 });
 
-Deno.test("shouldRemoveSubscription - false for a transient 500", () => {
+denotest("shouldRemoveSubscription - false for a transient 500", () => {
   assertEquals(shouldRemoveSubscription(500), false);
 });
 
-Deno.test("shouldRemoveSubscription - false for network errors with no status code", () => {
+denotest("shouldRemoveSubscription - false for network errors with no status code", () => {
   assertEquals(shouldRemoveSubscription(undefined), false);
 });
 
-Deno.test("buildPayload - uses provided title, body, and url", () => {
+denotest("buildPayload - uses provided title, body, and url", () => {
   const payload = JSON.parse(buildPayload("Match tonight", "7pm at the ground", "/matches/42"));
   assertEquals(payload, { title: "Match tonight", body: "7pm at the ground", url: "/matches/42" });
 });
 
-Deno.test("buildPayload - falls back to defaults when fields are omitted", () => {
+denotest("buildPayload - falls back to defaults when fields are omitted", () => {
   const payload = JSON.parse(buildPayload());
   assertEquals(payload, { title: "KATL Cricket", body: "", url: "." });
 });
 
-Deno.test("buildPayload - falls back to defaults when fields are empty strings", () => {
+denotest("buildPayload - falls back to defaults when fields are empty strings", () => {
   const payload = JSON.parse(buildPayload("", "", ""));
   assertEquals(payload, { title: "KATL Cricket", body: "", url: "." });
 });

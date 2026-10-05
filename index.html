@@ -993,7 +993,7 @@ function App() {
     style: {
       color: ORANGE
     }
-  }, "admin 🔓") : "viewer", " · last sync ", lastSync || "—"), /*#__PURE__*/React.createElement("main", {
+  }, "admin 🔓") : "viewer", " · last sync ", lastSync || "—", " · v6"), /*#__PURE__*/React.createElement("main", {
     className: "max-w-3xl mx-auto px-4 py-6 pb-24"
   }, (() => {
     const t = new Date(); const tm = t.getMonth() + 1, td = t.getDate();
@@ -4017,13 +4017,17 @@ function TrainingTab({
   const [openId, setOpenId] = useState(null);
   const fitInput = {
     ...inputStyle,
+    display: "block",
+    width: "100%",
     minWidth: 0,
     maxWidth: "100%",
     boxSizing: "border-box",
     WebkitAppearance: "none",
     appearance: "none",
     height: 42,
-    textAlign: "left"
+    textAlign: "left",
+    overflow: "hidden",
+    margin: "4px 0 0"
   };
   const blank = {
     date: toISO(new Date()),
@@ -4315,14 +4319,17 @@ function TrainingTab({
     className: "px-3 py-1.5 text-sm font-semibold",
     style: btnOrange
   }, "+ Add nets")), open && /*#__PURE__*/React.createElement(Card, {
-    className: "p-3 space-y-3"
+    className: "p-3 space-y-3 overflow-hidden"
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-2",
     style: {
       gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)"
     }
   }, /*#__PURE__*/React.createElement("label", {
-    className: "text-sm text-neutral-400 block"
+    className: "text-sm text-neutral-400 block",
+    style: {
+      minWidth: 0
+    }
   }, "Date", /*#__PURE__*/React.createElement("input", {
     type: "date",
     value: form.date,
@@ -4332,7 +4339,10 @@ function TrainingTab({
     }),
     style: fitInput
   })), /*#__PURE__*/React.createElement("label", {
-    className: "text-sm text-neutral-400 block"
+    className: "text-sm text-neutral-400 block",
+    style: {
+      minWidth: 0
+    }
   }, "Time", /*#__PURE__*/React.createElement("input", {
     type: "time",
     value: form.time,

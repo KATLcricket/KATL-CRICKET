@@ -19,6 +19,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="KATL">
 <link rel="apple-touch-icon" href="icon-192.png">
+<style id="katl-fit">input[type=date],input[type=time],input[type=month]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;width:100%;box-sizing:border-box;display:block;min-height:42px;text-align:left;overflow:hidden}input[type=date]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and-time-value{text-align:left;min-width:0}label{min-width:0}</style>
 </head>
 <body>
 <div id="root"></div>
@@ -481,6 +482,10 @@ const inputStyle = {
   borderRadius: 8,
   padding: "8px 12px",
   width: "100%",
+  minWidth: 0,
+  maxWidth: "100%",
+  boxSizing: "border-box",
+  display: "block",
   marginTop: 4,
   colorScheme: "dark"
 };
@@ -993,7 +998,7 @@ function App() {
     style: {
       color: ORANGE
     }
-  }, "admin 🔓") : "viewer", " · last sync ", lastSync || "—", " · v6"), /*#__PURE__*/React.createElement("main", {
+  }, "admin 🔓") : "viewer", " · last sync ", lastSync || "—", " · v7"), /*#__PURE__*/React.createElement("main", {
     className: "max-w-3xl mx-auto px-4 py-6 pb-24"
   }, (() => {
     const t = new Date(); const tm = t.getMonth() + 1, td = t.getDate();

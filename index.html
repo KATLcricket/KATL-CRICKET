@@ -545,6 +545,7 @@ function App() {
   const [cricheroes, setCricheroes] = useState(null);
   const [extraBdays, setExtraBdays] = useState([]);
   const [trainings, setTrainings] = useState([]);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [me, setMe] = useState(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [toast, setToast] = useState(null);
@@ -905,7 +906,7 @@ function App() {
       borderBottom: `1px solid ${BORDER}`
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "max-w-3xl mx-auto px-4 pt-5 pb-3"
+    className: "max-w-3xl mx-auto px-4 pt-3 pb-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-end justify-between gap-3 flex-wrap"
   }, /*#__PURE__*/React.createElement("div", {
@@ -914,7 +915,7 @@ function App() {
     src: KATL_LOGO,
     alt: "KATL logo",
     style: {
-      width: 66,
+      width: 44,
       filter: "drop-shadow(0 0 14px rgba(255,107,26,0.5))"
     }
   }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
@@ -926,8 +927,8 @@ function App() {
   }, "KATL Cricket Club"), /*#__PURE__*/React.createElement("h1", {
     className: "kc-bebas leading-none",
     style: {
-      fontSize: 52,
-      letterSpacing: 4
+      fontSize: 28,
+      letterSpacing: 2
     }
   }, "KATL ", /*#__PURE__*/React.createElement("span", {
     style: {
@@ -943,7 +944,7 @@ function App() {
     onClick: () => reloadAll(false),
     title: "Refresh team data",
     disabled: syncing,
-    className: "rounded-xl px-3 py-2 text-lg disabled:opacity-50",
+    className: "rounded-xl px-2.5 py-1.5 text-base disabled:opacity-50",
     style: {
       border: `1px solid ${BORDER}`,
       background: "rgba(0,0,0,0.4)",
@@ -952,7 +953,7 @@ function App() {
   }, syncing ? "…" : "⟳"), /*#__PURE__*/React.createElement("button", {
     onClick: () => isAdmin ? lockAdmin() : setAdminPrompt(true),
     title: isAdmin ? "Admin mode — tap to lock" : "Enter admin mode",
-    className: "rounded-xl px-3 py-2 text-lg",
+    className: "rounded-xl px-2.5 py-1.5 text-base",
     style: {
       border: `1px solid ${isAdmin ? ORANGE : BORDER}`,
       background: isAdmin ? "rgba(255,107,26,0.18)" : "rgba(0,0,0,0.4)",
@@ -961,45 +962,42 @@ function App() {
   }, isAdmin ? "🔓" : "🔒"), isAdmin && /*#__PURE__*/React.createElement("button", {
     onClick: backupAll,
     title: "Download a backup of all team data",
-    className: "rounded-xl px-3 py-2 text-lg",
+    className: "rounded-xl px-2.5 py-1.5 text-base",
     style: {
       border: `1px solid ${BORDER}`,
       background: "rgba(0,0,0,0.4)",
       color: "#60A5FA"
     }
-  }, "\u2B07\uFE0F")))), /*#__PURE__*/React.createElement("nav", {
-    className: "max-w-3xl mx-auto px-4 flex gap-0 overflow-x-auto"
-  }, [["weekend", "Availability"], ["matches", "Schedule"], ["training", "Nets"], ["expenses", "Expenses"], ["leaves", "Leaves"], ["squad", "Squad"], ["birthdays", "Birthdays"]].map(([id, label]) => /*#__PURE__*/React.createElement("button", {
-    key: id,
-    onClick: () => setTab(id),
-    className: "kc-display uppercase whitespace-nowrap px-4 py-3 text-sm font-semibold transition-colors",
-    style: {
-      letterSpacing: 2,
-      color: tab === id ? ORANGE : "#888",
-      borderBottom: tab === id ? `2px solid ${ORANGE}` : "2px solid transparent"
-    }
-  }, label)))), !storageOk ? /*#__PURE__*/React.createElement("div", {
+  }, "\u2B07\uFE0F")))), null), !storageOk ? /*#__PURE__*/React.createElement("div", {
     className: "text-white text-sm text-center px-4 py-2",
     style: {
       background: "#dc2626"
     }
   }, "⚠️ Storage NOT connected — changes will be lost when you close the app. Tap ⟳ above to retry.") : /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-center px-4 py-1",
+    className: "text-[11px] px-4 py-1 flex items-center justify-center gap-2",
     style: {
-      background: "rgba(255,107,26,0.1)",
-      color: "#c9a",
+      background: "rgba(255,107,26,0.06)",
+      color: "#a99",
       borderBottom: `1px solid ${BORDER}`
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: GOLD
+      width: 8,
+      height: 8,
+      borderRadius: 99,
+      display: "inline-block",
+      background: saveVerified === false ? "#f43f5e" : saveVerified === null ? GOLD : "#4ADE80"
     }
-  }, supaConfigured() ? "Team sync ON" : "Local only", " ", saveVerified ? "✓" : ""), " · saves ", saveVerified === null ? "checking…" : saveVerified ? "ok" : supaConfigured() ? "BACKEND UNREACHABLE ✗" : "local ✓", " · ", players.length, " players · ", isAdmin ? /*#__PURE__*/React.createElement("span", {
+  }), /*#__PURE__*/React.createElement("span", null, saveVerified === false ? "Sync problem" : supaConfigured() ? "Synced " + (lastSync || "—") : "Local only"), /*#__PURE__*/React.createElement("span", {
     style: {
-      color: ORANGE
+      color: isAdmin ? ORANGE : "#777"
     }
-  }, "admin 🔓") : "viewer", " · last sync ", lastSync || "—", " · v7"), /*#__PURE__*/React.createElement("main", {
-    className: "max-w-3xl mx-auto px-4 py-6 pb-24"
+  }, isAdmin ? "· Admin 🔓" : "· Viewer"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#555"
+    }
+  }, "· v8")), /*#__PURE__*/React.createElement("main", {
+    className: "max-w-3xl mx-auto px-4 py-5 pb-32"
   }, (() => {
     const t = new Date(); const tm = t.getMonth() + 1, td = t.getDate();
     const todays = [...KATL_BIRTHDAYS, ...(extraBdays || [])].filter(b => b.m === tm && b.d === td).map(b => b.name);
@@ -1077,11 +1075,35 @@ function App() {
     requestAdmin: () => setAdminPrompt(true),
     beginEditing: beginEditing,
     endEditing: endEditing
-  })), adminPrompt && /*#__PURE__*/React.createElement(AdminPrompt, {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "fixed left-0 right-0 bottom-0 z-40",
+    style: { background: "rgba(10,10,10,0.97)", borderTop: `1px solid ${BORDER}`, backdropFilter: "blur(8px)", paddingBottom: "max(8px, env(safe-area-inset-bottom))" }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "max-w-3xl mx-auto flex"
+  }, [["weekend", "📅", "Availability"], ["matches", "🏏", "Schedule"], ["training", "🎯", "Nets"], ["expenses", "💰", "Expenses"], ["__more", "☰", ["leaves", "squad", "birthdays"].includes(tab) ? ({ leaves: "Leaves", squad: "Squad", birthdays: "Birthdays" })[tab] : "More"]].map(([id, icon, label]) => {
+    const active = id === "__more" ? ["leaves", "squad", "birthdays"].includes(tab) : tab === id;
+    return /*#__PURE__*/React.createElement("button", {
+      key: id,
+      onClick: () => { if (id === "__more") setMoreOpen(o => !o); else { setMoreOpen(false); setTab(id); window.scrollTo(0, 0); } },
+      className: "flex-1 flex flex-col items-center gap-0.5 pt-2 pb-1",
+      style: { color: active ? ORANGE : "#888", borderTop: active ? `2px solid ${ORANGE}` : "2px solid transparent", marginTop: -1 }
+    }, /*#__PURE__*/React.createElement("span", { style: { fontSize: 20, lineHeight: 1 } }, icon), /*#__PURE__*/React.createElement("span", { className: "text-[10px] font-semibold", style: { letterSpacing: 0.5 } }, label));
+  }))), moreOpen && /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-30",
+    onClick: () => setMoreOpen(false)
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "absolute right-3 rounded-2xl overflow-hidden",
+    style: { bottom: "calc(72px + env(safe-area-inset-bottom))", background: "#181818", border: `1px solid ${ORANGE}`, boxShadow: "0 8px 30px rgba(0,0,0,0.7)", minWidth: 190 }
+  }, [["leaves", "🌴", "Leaves"], ["squad", "👥", "Squad"], ["birthdays", "🎂", "Birthdays"]].map(([id, icon, label]) => /*#__PURE__*/React.createElement("button", {
+    key: id,
+    onClick: e => { e.stopPropagation(); setMoreOpen(false); setTab(id); window.scrollTo(0, 0); },
+    className: "w-full flex items-center gap-3 px-4 py-3 text-left font-semibold",
+    style: { color: tab === id ? ORANGE : "#f0ede8", background: "transparent" }
+  }, /*#__PURE__*/React.createElement("span", { style: { fontSize: 18 } }, icon), label)))), adminPrompt && /*#__PURE__*/React.createElement(AdminPrompt, {
     onClose: () => setAdminPrompt(false),
     onSubmit: unlockAdmin
   }), toast && /*#__PURE__*/React.createElement("div", {
-    className: "fixed bottom-5 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-full text-sm pop",
+    className: "fixed bottom-24 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-full text-sm pop",
     style: {
       background: "#181818",
       border: `1px solid ${ORANGE}`,
@@ -2911,6 +2933,8 @@ function LeavesTab({
   const [from, setFrom] = useState(toISO(new Date()));
   const [to, setTo] = useState(toISO(new Date()));
   const [note, setNote] = useState("");
+  const [open, setOpen] = useState(false);
+  const toggleForm = () => { if (open) { setOpen(false); endEditing && endEditing(); } else { setOpen(true); beginEditing && beginEditing(); } };
   const save = () => {
     if (!playerId || !from || !to || to < from) return;
     addLeave({
@@ -2921,6 +2945,7 @@ function LeavesTab({
       note: note.trim()
     });
     setNote("");
+    setOpen(false);
     endEditing && endEditing();
   };
   const today = toISO(new Date());
@@ -2954,7 +2979,16 @@ function LeavesTab({
   };
   return /*#__PURE__*/React.createElement("div", {
     className: "space-y-5"
-  }, /*#__PURE__*/React.createElement(Card, {
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "kc-bebas text-2xl",
+    style: { color: ORANGE, letterSpacing: 2 }
+  }, "Leaves"), /*#__PURE__*/React.createElement("button", {
+    onClick: toggleForm,
+    className: "px-3 py-1.5 text-sm font-semibold",
+    style: btnOrange
+  }, open ? "Cancel" : "+ Add leave")), open && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 space-y-3",
     style: {
       borderColor: "rgba(255,184,0,0.35)"

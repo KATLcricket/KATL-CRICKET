@@ -996,7 +996,7 @@ function App() {
     style: {
       color: "#555"
     }
-  }, "· v8")), /*#__PURE__*/React.createElement("main", {
+  }, "· v10")), /*#__PURE__*/React.createElement("main", {
     className: "max-w-3xl mx-auto px-4 py-5 pb-32"
   }, (() => {
     const t = new Date(); const tm = t.getMonth() + 1, td = t.getDate();
@@ -1017,7 +1017,8 @@ function App() {
     chooseMe: chooseMe,
     onLeave: onLeave,
     isAdmin: isAdmin,
-    matches: matches
+    matches: matches,
+    trainings: trainings
   }), tab === "matches" && /*#__PURE__*/React.createElement(MatchesTab, {
     players: players,
     matches: matches,
@@ -1261,7 +1262,8 @@ function WeekendTab({
   chooseMe,
   onLeave,
   isAdmin,
-  matches
+  matches,
+  trainings
 }) {
   const todayISO = toISO(new Date());
   // Default selected day: today if it's in this week, else first day of the week.
@@ -1273,6 +1275,12 @@ function WeekendTab({
   }, [week]); // eslint-disable-line
 
   const dayAvail = avail[dateISO] || {};
+  const t12 = t => { if (!t) return ""; const [h, mm] = t.split(":").map(Number); return ((h + 11) % 12 + 1) + ":" + String(mm).padStart(2, "0") + " " + (h >= 12 ? "PM" : "AM"); };
+  const eventsOn = iso => [
+    ...(matches || []).filter(m => m.date === iso).map(m => ({ kind: "match", id: m.id, title: m.opponent ? "Match vs " + m.opponent : "Match", time: m.time, venue: m.venue, link: m.link, done: m.status === "completed" })),
+    ...(trainings || []).filter(t => t.date === iso).map(t => ({ kind: "nets", id: t.id, title: t.focus ? "Nets · " + t.focus : "Nets", time: t.time, venue: t.venue }))
+  ];
+  const dayEvents = eventsOn(dateISO);
   const mePlayer = players.find(p => p.id === me);
   const sorted = [...players].sort((a, b) => a.name.localeCompare(b.name));
   const groups = {
@@ -1312,6 +1320,8 @@ function WeekendTab({
     const fixture = (matches || []).find((m) => m.date === dateISO && m.status !== "completed");
     let msg = "🏏 *KATL — " + dLabel + "*\n";
     if (fixture) msg += (fixture.opponent ? "vs " + fixture.opponent : "Match") + (fixture.time ? " ⏰ " + fixture.time : "") + (fixture.venue ? " 📍 " + fixture.venue : "") + "\n";
+    const netsToday = (trainings || []).find(t => t.date === dateISO);
+    if (netsToday) msg += "🎯 Nets" + (netsToday.focus ? " · " + netsToday.focus : "") + (netsToday.time ? " ⏰ " + t12(netsToday.time) : "") + (netsToday.venue ? " 📍 " + netsToday.venue : "") + "\n";
     msg += "\n✅ IN (" + inList.length + "): " + (inList.join(", ") || "—") + "\n";
     if (maybeList.length) msg += "🤔 MAYBE (" + maybeList.length + "): " + maybeList.join(", ") + "\n";
     if (outList.length) msg += "❌ OUT (" + outList.length + "): " + outList.join(", ") + "\n";
@@ -1350,6 +1360,7 @@ function WeekendTab({
     const sel = iso === dateISO;
     const isToday = iso === todayISO;
     const cnt = inCount(iso);
+    const evs = eventsOn(iso);
     return /*#__PURE__*/React.createElement("button", {
       key: iso,
       onClick: () => setDateISO(iso),
@@ -1370,13 +1381,31 @@ function WeekendTab({
       }
     }, dow), /*#__PURE__*/React.createElement("span", {
       className: "kc-bebas text-xl leading-none mt-0.5"
-    }, dom, " ", mon), /*#__PURE__*/React.createElement("span", {
+    }, dom, " ", mon), evs.map(ev => /*#__PURE__*/React.createElement("span", {
+      key: ev.kind + ev.id,
+      className: "mt-1 text-[11px] font-semibold px-2 max-w-full truncate",
+      style: { color: sel ? "#fff" : ev.kind === "match" ? ORANGE : GOLD }
+    }, ev.kind === "match" ? "🏏 " : "🎯 ", ev.venue || "Ground TBA")), /*#__PURE__*/React.createElement("span", {
       className: "mt-1 text-[10px] tabular-nums",
       style: {
         color: sel ? "#fff" : cnt ? "#4ADE80" : "#555"
       }
     }, cnt > 0 ? `${cnt} in` : "—"));
-  })), /*#__PURE__*/React.createElement("button", {
+  })), dayEvents.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "space-y-1.5"
+  }, dayEvents.map(ev => /*#__PURE__*/React.createElement("div", {
+    key: ev.kind + ev.id,
+    className: "rounded-xl px-3 py-2.5",
+    style: { background: ev.kind === "match" ? "rgba(255,107,26,0.12)" : "rgba(255,184,0,0.10)", border: "1px solid " + (ev.kind === "match" ? "rgba(255,107,26,0.45)" : "rgba(255,184,0,0.4)") }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "kc-display font-bold text-white flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, ev.kind === "match" ? "🏏" : "🎯"), /*#__PURE__*/React.createElement("span", null, ev.title), ev.done && /*#__PURE__*/React.createElement("span", { className: "text-[10px] uppercase px-1.5 py-0.5 rounded-full", style: { background: "rgba(74,222,128,0.18)", color: "#4ADE80" } }, "Played")), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm mt-0.5",
+    style: { color: ev.venue ? "#f0ede8" : "#777" }
+  }, ev.time ? "⏰ " + t12(ev.time) : "", ev.venue ? "" : (ev.time ? " · " : "") + "Ground not set yet"), ev.link && /*#__PURE__*/React.createElement("a", {
+    href: ev.link, target: "_blank", rel: "noopener noreferrer",
+    className: "text-xs block mt-0.5", style: { color: ORANGE }
+  }, "🔗 View on CricHeroes")))), /*#__PURE__*/React.createElement("button", {
     onClick: shareWeekend,
     className: "w-full py-2.5 rounded-xl kc-display uppercase text-sm font-semibold",
     style: {

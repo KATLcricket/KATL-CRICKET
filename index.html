@@ -996,8 +996,8 @@ function App() {
     style: {
       color: "#555"
     }
-  }, "· v10")), /*#__PURE__*/React.createElement("main", {
-    className: "max-w-3xl mx-auto px-4 py-5 pb-32"
+  }, "· v11")), /*#__PURE__*/React.createElement("main", {
+    className: "max-w-3xl mx-auto px-4 py-3 pb-28"
   }, (() => {
     const t = new Date(); const tm = t.getMonth() + 1, td = t.getDate();
     const todays = [...KATL_BIRTHDAYS, ...(extraBdays || [])].filter(b => b.m === tm && b.d === td).map(b => b.name);
@@ -1329,8 +1329,12 @@ function WeekendTab({
     openWhatsApp(msg);
   };
   const myUnmarked = (me && weekOffset === 0) ? week.filter((iso) => !(avail[iso] || {})[me] && !onLeave(me, iso)) : [];
+  useEffect(() => {
+    window.__katlShare = shareWeekend;
+    return () => { if (window.__katlShare === shareWeekend) delete window.__katlShare; };
+  });
   return /*#__PURE__*/React.createElement("div", {
-    className: "space-y-5"
+    className: "space-y-2.5"
   }, myUnmarked.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-4 py-2.5 text-sm flex items-center gap-2",
     style: { background: "rgba(255,184,0,0.12)", border: "1px solid rgba(255,184,0,0.4)", color: "#FFB800" }
@@ -1364,7 +1368,7 @@ function WeekendTab({
     return /*#__PURE__*/React.createElement("button", {
       key: iso,
       onClick: () => setDateISO(iso),
-      className: "rounded-xl py-2 flex flex-col items-center transition-all",
+      className: "rounded-xl py-1.5 flex flex-col items-center transition-all",
       style: sel ? {
         ...btnOrange,
         borderRadius: 12
@@ -1380,7 +1384,7 @@ function WeekendTab({
         opacity: 0.85
       }
     }, dow), /*#__PURE__*/React.createElement("span", {
-      className: "kc-bebas text-xl leading-none mt-0.5"
+      className: "kc-bebas text-xl leading-none"
     }, dom, " ", mon), evs.map(ev => /*#__PURE__*/React.createElement("span", {
       key: ev.kind + ev.id,
       className: "mt-1 text-[11px] font-semibold px-2 max-w-full truncate",
@@ -1391,31 +1395,8 @@ function WeekendTab({
         color: sel ? "#fff" : cnt ? "#4ADE80" : "#555"
       }
     }, cnt > 0 ? `${cnt} in` : "—"));
-  })), dayEvents.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "space-y-1.5"
-  }, dayEvents.map(ev => /*#__PURE__*/React.createElement("div", {
-    key: ev.kind + ev.id,
-    className: "rounded-xl px-3 py-2.5",
-    style: { background: ev.kind === "match" ? "rgba(255,107,26,0.12)" : "rgba(255,184,0,0.10)", border: "1px solid " + (ev.kind === "match" ? "rgba(255,107,26,0.45)" : "rgba(255,184,0,0.4)") }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "kc-display font-bold text-white flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, ev.kind === "match" ? "🏏" : "🎯"), /*#__PURE__*/React.createElement("span", null, ev.title), ev.done && /*#__PURE__*/React.createElement("span", { className: "text-[10px] uppercase px-1.5 py-0.5 rounded-full", style: { background: "rgba(74,222,128,0.18)", color: "#4ADE80" } }, "Played")), /*#__PURE__*/React.createElement("div", {
-    className: "text-sm mt-0.5",
-    style: { color: ev.venue ? "#f0ede8" : "#777" }
-  }, ev.time ? "⏰ " + t12(ev.time) : "", ev.venue ? "" : (ev.time ? " · " : "") + "Ground not set yet"), ev.link && /*#__PURE__*/React.createElement("a", {
-    href: ev.link, target: "_blank", rel: "noopener noreferrer",
-    className: "text-xs block mt-0.5", style: { color: ORANGE }
-  }, "🔗 View on CricHeroes")))), /*#__PURE__*/React.createElement("button", {
-    onClick: shareWeekend,
-    className: "w-full py-2.5 rounded-xl kc-display uppercase text-sm font-semibold",
-    style: {
-      background: "rgba(37,211,102,0.15)",
-      color: "#25D366",
-      border: "1px solid rgba(37,211,102,0.5)",
-      letterSpacing: 1
-    }
-  }, "\uD83D\uDCF2 Share this day to WhatsApp"), /*#__PURE__*/React.createElement(Card, {
-    className: "p-4",
+  })), /*#__PURE__*/React.createElement(Card, {
+    className: "p-3",
     style: {
       borderColor: "rgba(255,107,26,0.45)"
     }
@@ -1432,7 +1413,7 @@ function WeekendTab({
   }, Object.entries(STATUS).map(([key, s]) => /*#__PURE__*/React.createElement("button", {
     key: key,
     onClick: () => setStatus(dateISO, me, key),
-    className: "flex-1 py-2.5 rounded-xl kc-bebas text-xl transition-all",
+    className: "flex-1 py-2 rounded-xl kc-bebas text-xl transition-all",
     style: {
       letterSpacing: 3,
       ...(dayAvail[me] === key ? {
@@ -1627,7 +1608,7 @@ function MatchesTab({
   const nextFixture = upcoming[0] || null;
   const nextIn = nextFixture ? players.filter(p => (avail[nextFixture.date] || {})[p.id] === "in").length : 0;
   return /*#__PURE__*/React.createElement("div", {
-    className: "space-y-4"
+    className: "space-y-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between flex-wrap gap-2"
   }, /*#__PURE__*/React.createElement("div", {
@@ -2145,7 +2126,7 @@ function StatsTab({
   const total = matches.filter(m => m.status === "completed").length;
   const medal = i => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
   return /*#__PURE__*/React.createElement("div", {
-    className: "space-y-4"
+    className: "space-y-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-baseline justify-between"
   }, /*#__PURE__*/React.createElement("div", {
@@ -2406,7 +2387,7 @@ function ExpensesTab({
     if (!open) beginEditing();else endEditing();
   };
   return /*#__PURE__*/React.createElement("div", {
-    className: "space-y-5"
+    className: "space-y-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between flex-wrap gap-2"
   }, /*#__PURE__*/React.createElement("div", {
@@ -3007,7 +2988,7 @@ function LeavesTab({
     }, "Delete"));
   };
   return /*#__PURE__*/React.createElement("div", {
-    className: "space-y-5"
+    className: "space-y-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between"
   }, /*#__PURE__*/React.createElement("h2", {
@@ -3218,7 +3199,7 @@ function CricHeroesTab({
     }
   }, label));
   return /*#__PURE__*/React.createElement("div", {
-    className: "space-y-5"
+    className: "space-y-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between flex-wrap gap-2"
   }, /*#__PURE__*/React.createElement("div", {
@@ -3904,7 +3885,7 @@ function BirthdaysTab({
     endEditing && endEditing();
   };
   return /*#__PURE__*/React.createElement("div", {
-    className: "space-y-5"
+    className: "space-y-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between flex-wrap gap-2"
   }, /*#__PURE__*/React.createElement("div", {
@@ -4373,7 +4354,7 @@ function TrainingTab({
     })))));
   };
   return /*#__PURE__*/React.createElement("div", {
-    className: "space-y-4"
+    className: "space-y-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between"
   }, /*#__PURE__*/React.createElement("h2", {
@@ -4524,7 +4505,7 @@ function SquadTab({
     endEditing();
   };
   return /*#__PURE__*/React.createElement("div", {
-    className: "space-y-5"
+    className: "space-y-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between flex-wrap gap-2"
   }, /*#__PURE__*/React.createElement("div", {
@@ -4808,6 +4789,7 @@ root.render(/*#__PURE__*/React.createElement(App, null));
       var panel = document.createElement("div");
       panel.style.cssText = "background:#181818;border:1px solid rgba(255,107,26,.45);border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.6);min-width:170px";
       panel.appendChild(menuItem(on ? "\uD83D\uDD14 Notifications: On" : "\uD83D\uDD14 Notify me", on ? "#4ADE80" : "#fff", on ? unsubscribe : subscribe));
+      if (typeof window.__katlShare === "function") panel.appendChild(menuItem("\uD83D\uDCF2 Share to WhatsApp", "#25D366", function () { window.__katlShare(); }));
       if (canInstall) panel.appendChild(menuItem("\uD83D\uDCF2 Install app", "#FF6B1A", doInstall));
       if (isAdmin()) panel.appendChild(menuItem("\uD83D\uDCE2 Send to team", "#FFB800", sendBroadcast));
       wrap.appendChild(panel);

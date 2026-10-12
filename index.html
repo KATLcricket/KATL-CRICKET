@@ -176,7 +176,7 @@ const SEED_PLAYERS = [{
 }];
 
 // ---------- date helpers ----------
-const toISO = d => d.toISOString().slice(0, 10);
+const toISO = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 const fmt = iso => {
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString("en-IN", {
@@ -996,7 +996,7 @@ function App() {
     style: {
       color: "#555"
     }
-  }, "· v11")), /*#__PURE__*/React.createElement("main", {
+  }, "· v12")), /*#__PURE__*/React.createElement("main", {
     className: "max-w-3xl mx-auto px-4 py-3 pb-28"
   }, (() => {
     const t = new Date(); const tm = t.getMonth() + 1, td = t.getDate();

@@ -257,7 +257,7 @@ const sleep = ms => new Promise(res => setTimeout(res, ms));
 const SUPABASE_URL = "https://efutoaoejjnwqujkyjzf.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_cNhggrxPsGl-DssQNP8YVQ_6znHS2tg";
 // Keys that belong to the whole team (shared in Supabase).
-const SHARED_KEYS = ["katl:players", "katl:avail", "katl:matches", "katl:leaves", "katl:expenses", "katl:settlements", "katl:cricheroes", "katl:birthdays", "katl:trainings"];
+const SHARED_KEYS = ["katl:players", "katl:avail", "katl:matches", "katl:leaves", "katl:expenses", "katl:settlements", "katl:cricheroes", "katl:birthdays", "katl:trainings", "katl:xi"];
 const supaConfigured = () => SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("YOUR-PROJECT") && !SUPABASE_ANON_KEY.includes("YOUR-PUBLIC");
 const supaHeaders = () => ({
   "apikey": SUPABASE_ANON_KEY,
@@ -545,6 +545,7 @@ function App() {
   const [cricheroes, setCricheroes] = useState(null);
   const [extraBdays, setExtraBdays] = useState([]);
   const [trainings, setTrainings] = useState([]);
+  const [xi, setXi] = useState({});
   const [moreOpen, setMoreOpen] = useState(false);
   const [me, setMe] = useState(null);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -612,7 +613,7 @@ function App() {
         } catch {}
         setSaveVerified(verified);
       }
-      const [p, a, m, l, ex, st, ch, bd, meStored, tr] = await Promise.all([loadMerged("katl:players", []), loadMerged("katl:avail", {}, "object"), loadMerged("katl:matches", []), loadMerged("katl:leaves", []), loadMerged("katl:expenses", []), loadMerged("katl:settlements", []), loadKey("katl:cricheroes", null), loadMerged("katl:birthdays", []), loadKey("katl:me", null), loadKey("katl:trainings", [])]);
+      const [p, a, m, l, ex, st, ch, bd, meStored, tr, xiR] = await Promise.all([loadMerged("katl:players", []), loadMerged("katl:avail", {}, "object"), loadMerged("katl:matches", []), loadMerged("katl:leaves", []), loadMerged("katl:expenses", []), loadMerged("katl:settlements", []), loadKey("katl:cricheroes", null), loadMerged("katl:birthdays", []), loadKey("katl:me", null), loadKey("katl:trainings", []), loadKey("katl:xi", {})]);
       // Skip applying if user started editing mid-fetch.
       if (silent && editingRef.current > 0) {
         setSyncing(false);
@@ -628,6 +629,7 @@ function App() {
       if (ch) setCricheroes(ch);
       setExtraBdays(cur => unionById(bd || [], cur));
       setTrainings(cur => mergeTrainings(tr || [], cur));
+      setXi(xiR && typeof xiR === "object" ? xiR : {});
       if (meStored) setMe(meStored);
       if (!silent) saveBoth("katl:players", squad);
       setLastSync(new Date().toLocaleTimeString("en-IN", {
@@ -697,6 +699,31 @@ function App() {
     };
     setAvail(next);
     if (!(await saveBoth("katl:avail", next))) ping("Couldn't save — please try again");
+    if (day[playerId] !== "in") dropFromXI(dateISO, playerId);
+  }
+  async function dropFromXI(dateISO, id) {
+    const remote = (await loadKey("katl:xi", {})) || {};
+    const cur = remote[dateISO];
+    if (!cur || !(cur.ids || []).includes(id)) return;
+    const ids = cur.ids.filter(x => x !== id);
+    const next = { ...remote };
+    if (ids.length) next[dateISO] = { ...cur, ids, c: cur.c === id ? "" : cur.c, vc: cur.vc === id ? "" : cur.vc, t: Date.now() }; else delete next[dateISO];
+    setXi(next);
+    await saveBoth("katl:xi", next);
+  }
+  async function toggleXI(dateISO, id) {
+    const remote = (await loadKey("katl:xi", {})) || {};
+    const cur = remote[dateISO] || { ids: [], c: "", vc: "" };
+    let ids = cur.ids || [];
+    if (ids.includes(id)) ids = ids.filter(x => x !== id);
+    else {
+      if (ids.length >= 12) { ping("Limit reached (12 players) — remove someone first"); return; }
+      ids = [...ids, id];
+    }
+    const next = { ...remote };
+    if (ids.length) next[dateISO] = { ...cur, ids, c: ids.includes(cur.c) ? cur.c : "", vc: ids.includes(cur.vc) ? cur.vc : "", t: Date.now() }; else delete next[dateISO];
+    setXi(next);
+    if (!(await saveBoth("katl:xi", next))) ping("Couldn't save — please try again");
   }
   async function addMatch(m) {
     const fresh = await loadMerged("katl:matches", []);
@@ -836,6 +863,14 @@ function App() {
     const next = unionById(fresh, extraBdays).filter(b => b.id !== id);
     setExtraBdays(next);
     await saveBoth("katl:birthdays", next);
+  }
+  async function saveXi(dateISO, entry) {
+    const remote = (await loadKey("katl:xi", {})) || {};
+    const next = { ...remote };
+    if (entry) next[dateISO] = entry; else delete next[dateISO];
+    setXi(next);
+    const ok = await saveBoth("katl:xi", next);
+    if (!ok) ping("Couldn't save — please try again");
   }
   async function addTraining(t) {
     const remote = await loadKey("katl:trainings", []);
@@ -996,7 +1031,7 @@ function App() {
     style: {
       color: "#555"
     }
-  }, "· v12")), /*#__PURE__*/React.createElement("main", {
+  }, "· v15")), /*#__PURE__*/React.createElement("main", {
     className: "max-w-3xl mx-auto px-4 py-3 pb-28"
   }, (() => {
     const t = new Date(); const tm = t.getMonth() + 1, td = t.getDate();
@@ -1018,7 +1053,11 @@ function App() {
     onLeave: onLeave,
     isAdmin: isAdmin,
     matches: matches,
-    trainings: trainings
+    trainings: trainings,
+    xi: xi,
+    saveXi: saveXi,
+    toggleXI: toggleXI,
+    requestAdmin: () => setAdminPrompt(true)
   }), tab === "matches" && /*#__PURE__*/React.createElement(MatchesTab, {
     players: players,
     matches: matches,
@@ -1263,7 +1302,11 @@ function WeekendTab({
   onLeave,
   isAdmin,
   matches,
-  trainings
+  trainings,
+  xi,
+  saveXi,
+  toggleXI,
+  requestAdmin
 }) {
   const todayISO = toISO(new Date());
   // Default selected day: today if it's in this week, else first day of the week.
@@ -1275,6 +1318,7 @@ function WeekendTab({
   }, [week]); // eslint-disable-line
 
   const dayAvail = avail[dateISO] || {};
+  const xiIds = (((xi || {})[dateISO] || {}).ids) || [];
   const t12 = t => { if (!t) return ""; const [h, mm] = t.split(":").map(Number); return ((h + 11) % 12 + 1) + ":" + String(mm).padStart(2, "0") + " " + (h >= 12 ? "PM" : "AM"); };
   const eventsOn = iso => [
     ...(matches || []).filter(m => m.date === iso).map(m => ({ kind: "match", id: m.id, title: m.opponent ? "Match vs " + m.opponent : "Match", time: m.time, venue: m.venue, link: m.link, done: m.status === "completed" })),
@@ -1320,6 +1364,12 @@ function WeekendTab({
     const fixture = (matches || []).find((m) => m.date === dateISO && m.status !== "completed");
     let msg = "🏏 *KATL — " + dLabel + "*\n";
     if (fixture) msg += (fixture.opponent ? "vs " + fixture.opponent : "Match") + (fixture.time ? " ⏰ " + fixture.time : "") + (fixture.venue ? " 📍 " + fixture.venue : "") + "\n";
+    const xiE = (xi || {})[dateISO];
+    if (xiE && xiE.ids && xiE.ids.length) {
+      msg += "\n🏆 *Playing XI*\n" + xiE.ids.map((id, i) => (i + 1) + ". " + nameOf(id) + (xiE.c === id ? " (C)" : "") + (xiE.vc === id ? " (VC)" : "")).join("\n") + "\n";
+      const benchNames = players.filter((p) => !onLeave(p.id, dateISO) && day[p.id] === "in" && !xiE.ids.includes(p.id)).map((p) => p.name);
+      if (benchNames.length) msg += "🪑 Bench: " + benchNames.join(", ") + "\n";
+    }
     const netsToday = (trainings || []).find(t => t.date === dateISO);
     if (netsToday) msg += "🎯 Nets" + (netsToday.focus ? " · " + netsToday.focus : "") + (netsToday.time ? " ⏰ " + t12(netsToday.time) : "") + (netsToday.venue ? " 📍 " + netsToday.venue : "") + "\n";
     msg += "\n✅ IN (" + inList.length + "): " + (inList.join(", ") || "—") + "\n";
@@ -1395,7 +1445,18 @@ function WeekendTab({
         color: sel ? "#fff" : cnt ? "#4ADE80" : "#555"
       }
     }, cnt > 0 ? `${cnt} in` : "—"));
-  })), /*#__PURE__*/React.createElement(Card, {
+  })), /*#__PURE__*/React.createElement(XICard, {
+    players: players,
+    dateISO: dateISO,
+    day: dayAvail,
+    onLeave: onLeave,
+    matches: matches,
+    xiEntry: (xi || {})[dateISO],
+    isAdmin: isAdmin,
+    saveXi: saveXi,
+    me: me,
+    requestAdmin: requestAdmin
+  }), /*#__PURE__*/React.createElement(Card, {
     className: "p-3",
     style: {
       borderColor: "rgba(255,107,26,0.45)"
@@ -1473,7 +1534,7 @@ function WeekendTab({
     }), titles[g], " ", /*#__PURE__*/React.createElement("span", {
       className: "text-neutral-600"
     }, "(", list.length, ")")), /*#__PURE__*/React.createElement("div", {
-      className: "grid grid-cols-2 sm:grid-cols-3 gap-2"
+      className: (isAdmin && g === "in") ? "grid grid-cols-1 gap-1.5" : "grid grid-cols-2 sm:grid-cols-3 gap-2"
     }, list.map(p => /*#__PURE__*/React.createElement("div", {
       key: p.id,
       className: "px-3 py-2 rounded-xl text-sm flex items-center gap-2",
@@ -1490,7 +1551,7 @@ function WeekendTab({
       className: "flex flex-col min-w-0"
     }, /*#__PURE__*/React.createElement("span", {
       className: "font-medium truncate text-neutral-200"
-    }, p.name), dayAvail["_t_" + p.id] ? /*#__PURE__*/React.createElement("span", {
+    }, p.name, xiIds.includes(p.id) ? /*#__PURE__*/React.createElement("span", { style: { color: GOLD, fontSize: 11 } }, " ⭐XI") : null), dayAvail["_t_" + p.id] ? /*#__PURE__*/React.createElement("span", {
       className: "text-[10px] text-neutral-500 truncate",
       title: "Marked " + fmtWhenFull(dayAvail["_t_" + p.id])
     }, fmtWhen(dayAvail["_t_" + p.id])) : null), p.leave && /*#__PURE__*/React.createElement("span", {
@@ -1506,7 +1567,13 @@ function WeekendTab({
       title: "Set " + p.name + " " + opt[0],
       className: "w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center",
       style: (dayAvail[p.id] === opt[0]) ? { background: opt[2], color: "#fff", border: "1px solid transparent" } : { background: "transparent", color: "#888", border: "1px solid rgba(255,255,255,0.18)" }
-    }, opt[1])))))));
+    }, opt[1])), (dayAvail[p.id] === "in") && /*#__PURE__*/React.createElement("button", {
+      key: "xi",
+      onClick: () => toggleXI(dateISO, p.id),
+      title: xiIds.includes(p.id) ? "Remove from Playing XI" : "Add to Playing XI",
+      className: "h-6 w-8 rounded-full text-[10px] font-bold flex items-center justify-center",
+      style: xiIds.includes(p.id) ? { background: GOLD, color: "#000", border: "1px solid transparent" } : { background: "transparent", color: GOLD, border: "1px solid rgba(255,184,0,0.5)" }
+    }, "XI"))))));
   }));
 }
 
@@ -4478,6 +4545,214 @@ function TrainingTab({
       color: rate(p.id) >= 75 ? "#4ADE80" : rate(p.id) >= 40 ? GOLD : "#f43f5e"
     }
   }, rate(p.id), "%"))))));
+}
+// ---------- Playing XI picker (admin) + display (everyone) ----------
+function XICard({
+  players,
+  dateISO,
+  day,
+  onLeave,
+  matches,
+  xiEntry,
+  isAdmin,
+  saveXi,
+  me,
+  requestAdmin
+}) {
+  const [open, setOpen] = useState(false);
+  const ids = xiEntry && xiEntry.ids || [];
+  const cap = xiEntry && xiEntry.c;
+  const vc = xiEntry && xiEntry.vc;
+  const nameOf = id => (players.find(p => p.id === id) || {}).name || "?";
+  const played = id => (matches || []).filter(m => m.status === "completed" && (m.played || []).includes(id)).length;
+  const voteT = id => day && day["_t_" + id] || Infinity;
+  const isIn = p => !onLeave(p.id, dateISO) && day[p.id] === "in";
+  const isMaybe = p => !onLeave(p.id, dateISO) && day[p.id] === "maybe";
+  const inPlayers = players.filter(isIn).sort((a, b) => voteT(a.id) - voteT(b.id));
+  const maybePlayers = players.filter(isMaybe).sort((a, b) => voteT(a.id) - voteT(b.id));
+  const rankOf = id => inPlayers.findIndex(p => p.id === id) + 1;
+  const inCount = inPlayers.length;
+  const save = (nextIds, c, v) => {
+    if (!nextIds.length) {
+      saveXi(dateISO, null);
+      return;
+    }
+    saveXi(dateISO, {
+      ids: nextIds,
+      c: nextIds.includes(c) ? c : "",
+      vc: nextIds.includes(v) ? v : "",
+      t: Date.now()
+    });
+  };
+  const toggle = id => {
+    if (ids.includes(id)) save(ids.filter(x => x !== id), cap, vc);else if (ids.length < 12) save([...ids, id], cap, vc);
+  };
+  const autoPick = mode => {
+    const pool = [...inPlayers];
+    if (mode === "fair") pool.sort((a, b) => played(a.id) - played(b.id) || voteT(a.id) - voteT(b.id));
+    const pick = pool.slice(0, 12).map(p => p.id);
+    save(pick, cap, vc);
+  };
+  const setRole = (id, role) => {
+    if (role === "c") save(ids, cap === id ? "" : id, vc === id ? "" : vc);else save(ids, cap === id ? "" : cap, vc === id ? "" : id);
+  };
+  const bench = inPlayers.filter(p => !ids.includes(p.id));
+  const meIn = me && ids.includes(me);
+  const meBench = me && !meIn && ids.length > 0 && day[me] === "in";
+
+  // Nothing to show to viewers until the admin has picked an XI
+  if (!isAdmin && !ids.length) return null;
+  // Admins only need this once there are players to pick from
+  if (isAdmin && !ids.length && inCount === 0 && !open) return null;
+  const chip = (id, extra) => /*#__PURE__*/React.createElement("span", {
+    key: id,
+    className: "text-xs px-2 py-1 rounded-full text-white flex items-center gap-1",
+    style: {
+      background: "rgba(255,255,255,0.08)",
+      border: "1px solid " + (id === me ? ORANGE : "transparent")
+    }
+  }, nameOf(id), id === cap && /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: GOLD
+    }
+  }, "(C)"), id === vc && /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: "#60A5FA"
+    }
+  }, "(VC)"), extra);
+  return /*#__PURE__*/React.createElement(Card, {
+    className: "p-3",
+    style: {
+      borderColor: "rgba(255,184,0,0.45)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "kc-bebas text-xl",
+    style: {
+      letterSpacing: 1.5,
+      color: GOLD
+    }
+  }, "🏆 Playing XI ", /*#__PURE__*/React.createElement("span", {
+    className: "text-sm text-neutral-400"
+  }, ids.length, "/12")), isAdmin ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => setOpen(o => !o),
+    className: "px-3 py-1 text-sm font-semibold",
+    style: btnOrange
+  }, open ? "Done" : ids.length ? "Edit XI" : "Pick XI") : null), isAdmin && !ids.length && inCount > 12 && !open && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs mt-1",
+    style: {
+      color: GOLD
+    }
+  }, inCount, " players are IN — the limit is 12. Tap Pick XI."), ids.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2"
+  }, meIn && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs font-bold mb-1",
+    style: {
+      color: "#4ADE80"
+    }
+  }, "✅ You're in the XI!"), meBench && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs font-bold mb-1",
+    style: {
+      color: GOLD
+    }
+  }, "🪑 You're on the bench — be ready"), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-1.5"
+  }, ids.map(id => chip(id))), bench.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] uppercase text-neutral-500 mb-1",
+    style: {
+      letterSpacing: 1.5
+    }
+  }, "Bench (", bench.length, ")"), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-1.5"
+  }, bench.map(p => /*#__PURE__*/React.createElement("span", {
+    key: p.id,
+    className: "text-xs px-2 py-1 rounded-full text-neutral-400",
+    style: {
+      background: "rgba(255,255,255,0.04)"
+    }
+  }, p.name))))), isAdmin && open && /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 space-y-2",
+    style: {
+      borderTop: "1px solid " + BORDER,
+      paddingTop: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => autoPick("first"),
+    className: "flex-1 py-2 rounded-lg text-xs font-bold",
+    style: {
+      background: "rgba(74,222,128,0.12)",
+      color: "#4ADE80",
+      border: "1px solid rgba(74,222,128,0.4)"
+    }
+  }, "⚡ First 12 to vote"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => autoPick("fair"),
+    className: "flex-1 py-2 rounded-lg text-xs font-bold",
+    style: {
+      background: "rgba(255,184,0,0.12)",
+      color: GOLD,
+      border: "1px solid rgba(255,184,0,0.4)"
+    }
+  }, "⚖️ Fair rotation")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-neutral-500"
+  }, "Fair rotation gives the game to players with the fewest matches played. Tap names to adjust, then tag C and VC."), ids.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => saveXi(dateISO, null),
+    className: "text-xs text-neutral-500"
+  }, "Clear XI"), inPlayers.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-sm text-neutral-500"
+  }, "Nobody is IN for this day yet."), [...inPlayers, ...maybePlayers].map((p, i) => {
+    const sel = ids.includes(p.id);
+    const maybe = day[p.id] === "maybe";
+    return /*#__PURE__*/React.createElement("div", {
+      key: p.id,
+      className: "flex items-center gap-1",
+      style: {
+        opacity: maybe && !sel ? 0.65 : 1
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => toggle(p.id),
+      className: "flex-1 flex items-center gap-2 px-2 py-1.5 rounded-lg text-left min-w-0",
+      style: {
+        background: sel ? "rgba(74,222,128,0.10)" : "rgba(255,255,255,0.03)",
+        border: "1px solid " + (sel ? "rgba(74,222,128,0.4)" : BORDER)
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-sm font-bold w-4",
+      style: {
+        color: sel ? "#4ADE80" : "#555"
+      }
+    }, sel ? "✓" : "○"), /*#__PURE__*/React.createElement(Avatar, {
+      name: p.name,
+      size: 26,
+      fontSize: 10
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "flex-1 min-w-0 truncate text-sm text-white"
+    }, p.name), /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] text-neutral-500 whitespace-nowrap"
+    }, maybe ? "maybe" : "#" + rankOf(p.id), " · ", played(p.id), " mp")), sel && /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-0.5"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => setRole(p.id, "c"),
+      className: "w-7 h-8 rounded text-[11px] font-bold",
+      style: {
+        background: cap === p.id ? GOLD : "rgba(255,255,255,0.06)",
+        color: cap === p.id ? "#000" : GOLD
+      }
+    }, "C"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setRole(p.id, "vc"),
+      className: "w-8 h-8 rounded text-[11px] font-bold",
+      style: {
+        background: vc === p.id ? "#60A5FA" : "rgba(255,255,255,0.06)",
+        color: vc === p.id ? "#000" : "#60A5FA"
+      }
+    }, "VC")));
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-neutral-600"
+  }, "#n = order of voting · mp = matches played")));
 }
 // ---------- Squad ----------
 function SquadTab({

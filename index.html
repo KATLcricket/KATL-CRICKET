@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>KATL Cricket</title>
+<meta name="katl-version" content="v20">
 <meta name="theme-color" content="#080808">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#127951;</text></svg>">
 <script src="https://cdn.tailwindcss.com"></script>
@@ -1027,11 +1028,7 @@ function App() {
     style: {
       color: isAdmin ? ORANGE : "#777"
     }
-  }, isAdmin ? "· Admin 🔓" : "· Viewer"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: "#555"
-    }
-  }, "· v15")), /*#__PURE__*/React.createElement("main", {
+  }, isAdmin ? "· Admin 🔓" : "· Viewer")), /*#__PURE__*/React.createElement("main", {
     className: "max-w-3xl mx-auto px-4 py-3 pb-28"
   }, (() => {
     const t = new Date(); const tm = t.getMonth() + 1, td = t.getDate();
@@ -1445,18 +1442,7 @@ function WeekendTab({
         color: sel ? "#fff" : cnt ? "#4ADE80" : "#555"
       }
     }, cnt > 0 ? `${cnt} in` : "—"));
-  })), /*#__PURE__*/React.createElement(XICard, {
-    players: players,
-    dateISO: dateISO,
-    day: dayAvail,
-    onLeave: onLeave,
-    matches: matches,
-    xiEntry: (xi || {})[dateISO],
-    isAdmin: isAdmin,
-    saveXi: saveXi,
-    me: me,
-    requestAdmin: requestAdmin
-  }), /*#__PURE__*/React.createElement(Card, {
+  })), /*#__PURE__*/React.createElement(Card, {
     className: "p-3",
     style: {
       borderColor: "rgba(255,107,26,0.45)"
@@ -1534,10 +1520,10 @@ function WeekendTab({
     }), titles[g], " ", /*#__PURE__*/React.createElement("span", {
       className: "text-neutral-600"
     }, "(", list.length, ")")), /*#__PURE__*/React.createElement("div", {
-      className: (isAdmin && g === "in") ? "grid grid-cols-1 gap-1.5" : "grid grid-cols-2 sm:grid-cols-3 gap-2"
+      className: "grid grid-cols-2 sm:grid-cols-3 gap-2"
     }, list.map(p => /*#__PURE__*/React.createElement("div", {
       key: p.id,
-      className: "px-3 py-2 rounded-xl text-sm flex items-center gap-2",
+      className: isAdmin && !p.leave ? "px-2.5 py-2 rounded-xl text-sm flex flex-wrap items-center gap-x-2 gap-y-1.5" : "px-3 py-2 rounded-xl text-sm flex items-center gap-2",
       style: {
         background: CARD,
         border: `1px solid ${g === "none" ? "rgba(255,255,255,0.08)" : BORDER}`,
@@ -1560,7 +1546,7 @@ function WeekendTab({
         letterSpacing: 1
       }
     }, "leave"), isAdmin && !p.leave && /*#__PURE__*/React.createElement("span", {
-      className: "ml-auto flex gap-1"
+      className: "w-full flex gap-1 justify-between"
     }, [["in", "I", "#16a34a"], ["maybe", "M", "#d97706"], ["out", "O", "#dc2626"]].map(opt => /*#__PURE__*/React.createElement("button", {
       key: opt[0],
       onClick: () => setStatus(dateISO, p.id, opt[0]),

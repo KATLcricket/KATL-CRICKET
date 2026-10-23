@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>KATL Cricket</title>
-<meta name="katl-version" content="v20">
+<meta name="katl-version" content="v24">
 <meta name="theme-color" content="#080808">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#127951;</text></svg>">
 <script src="https://cdn.tailwindcss.com"></script>
@@ -258,7 +258,7 @@ const sleep = ms => new Promise(res => setTimeout(res, ms));
 const SUPABASE_URL = "https://efutoaoejjnwqujkyjzf.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_cNhggrxPsGl-DssQNP8YVQ_6znHS2tg";
 // Keys that belong to the whole team (shared in Supabase).
-const SHARED_KEYS = ["katl:players", "katl:avail", "katl:matches", "katl:leaves", "katl:expenses", "katl:settlements", "katl:cricheroes", "katl:birthdays", "katl:trainings", "katl:xi"];
+const SHARED_KEYS = ["katl:players", "katl:avail", "katl:matches", "katl:leaves", "katl:expenses", "katl:settlements", "katl:cricheroes", "katl:birthdays", "katl:trainings", "katl:xi", "katl:funds"];
 const supaConfigured = () => SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("YOUR-PROJECT") && !SUPABASE_ANON_KEY.includes("YOUR-PUBLIC");
 const supaHeaders = () => ({
   "apikey": SUPABASE_ANON_KEY,
@@ -543,6 +543,7 @@ function App() {
   const [leaves, setLeaves] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [settlements, setSettlements] = useState([]);
+  const [funds, setFunds] = useState([]);
   const [cricheroes, setCricheroes] = useState(null);
   const [extraBdays, setExtraBdays] = useState([]);
   const [trainings, setTrainings] = useState([]);
@@ -614,7 +615,7 @@ function App() {
         } catch {}
         setSaveVerified(verified);
       }
-      const [p, a, m, l, ex, st, ch, bd, meStored, tr, xiR] = await Promise.all([loadMerged("katl:players", []), loadMerged("katl:avail", {}, "object"), loadMerged("katl:matches", []), loadMerged("katl:leaves", []), loadMerged("katl:expenses", []), loadMerged("katl:settlements", []), loadKey("katl:cricheroes", null), loadMerged("katl:birthdays", []), loadKey("katl:me", null), loadKey("katl:trainings", []), loadKey("katl:xi", {})]);
+      const [p, a, m, l, ex, st, ch, bd, meStored, tr, xiR, fdR] = await Promise.all([loadMerged("katl:players", []), loadMerged("katl:avail", {}, "object"), loadMerged("katl:matches", []), loadMerged("katl:leaves", []), loadMerged("katl:expenses", []), loadMerged("katl:settlements", []), loadKey("katl:cricheroes", null), loadMerged("katl:birthdays", []), loadKey("katl:me", null), loadKey("katl:trainings", []), loadKey("katl:xi", {}), loadMerged("katl:funds", [])]);
       // Skip applying if user started editing mid-fetch.
       if (silent && editingRef.current > 0) {
         setSyncing(false);
@@ -627,6 +628,7 @@ function App() {
       setLeaves(cur => unionById(l, cur));
       setExpenses(cur => unionById(ex, cur));
       setSettlements(cur => unionById(st, cur));
+      setFunds(cur => unionById(fdR || [], cur));
       if (ch) setCricheroes(ch);
       setExtraBdays(cur => unionById(bd || [], cur));
       setTrainings(cur => mergeTrainings(tr || [], cur));
@@ -774,6 +776,19 @@ function App() {
     const next = unionById(fresh, expenses).filter(e => e.id !== id);
     setExpenses(next);
     if (!(await saveBoth("katl:expenses", next))) ping("Couldn't save — please try again");
+  }
+  async function addFund(f) {
+    const fresh = await loadMerged("katl:funds", []);
+    const next = [...unionById(fresh, funds), f].sort((a, b) => b.date.localeCompare(a.date));
+    setFunds(next);
+    const ok = await saveBoth("katl:funds", next);
+    ping(ok ? "Inflow added" : "Couldn't save — please try again");
+  }
+  async function deleteFund(id) {
+    const fresh = await loadMerged("katl:funds", []);
+    const next = unionById(fresh, funds).filter(f => f.id !== id);
+    setFunds(next);
+    if (!(await saveBoth("katl:funds", next))) ping("Couldn't save — please try again");
   }
   // A settlement record marks that `from` has paid `to` the amount `amt`.
   async function settlePayment(from, to, amt) {
@@ -1070,6 +1085,11 @@ function App() {
     players: players,
     matches: matches,
     expenses: expenses,
+    funds: funds,
+    avail: avail,
+    updateMatch: updateMatch,
+    addFund: addFund,
+    deleteFund: deleteFund,
     addExpense: addExpense,
     deleteExpense: deleteExpense,
     me: me,
@@ -2286,6 +2306,11 @@ function ExpensesTab({
   players,
   matches,
   expenses,
+  funds,
+  avail,
+  updateMatch,
+  addFund,
+  deleteFund,
   addExpense,
   deleteExpense,
   me,
@@ -2308,6 +2333,14 @@ function ExpensesTab({
   const [splitWith, setSplitWith] = useState([]);
   const [filterMatch, setFilterMatch] = useState("all"); // "all" | "none" | matchId
   const [showSummary, setShowSummary] = useState(false);
+  const [fundOpen, setFundOpen] = useState(false);
+  const [showFundLog, setShowFundLog] = useState(false);
+  const [fDate, setFDate] = useState(toISO(new Date()));
+  const [fAmt, setFAmt] = useState("");
+  const [fFrom, setFFrom] = useState("");
+  const [fNote, setFNote] = useState("");
+  const [fMatch, setFMatch] = useState("");
+  const [feeDraft, setFeeDraft] = useState("");
   const sortedPlayers = [...players].sort((a, b) => a.name.localeCompare(b.name));
   const playerName = id => players.find(p => p.id === id)?.name || "—";
 
@@ -2434,6 +2467,95 @@ function ExpensesTab({
     };
   }, [visibleExpenses, settlements, settleUp]);
   const matchLabel = m => `${fmt(m.date)}${m.opponent ? ` · vs ${m.opponent}` : ""}`;
+  const visibleFunds = (funds || []).filter(f => filterMatch === "all" ? true : filterMatch === "none" ? !f.matchId : f.matchId === filterMatch);
+  const fundIn = visibleFunds.reduce((t, f) => t + f.amount, 0);
+  const fundOut = visibleExpenses.reduce((t, e) => t + e.amount, 0);
+  const fundBal = fundIn - fundOut;
+  const saveFund = () => {
+    const a = parseFloat(fAmt);
+    if (!a || a <= 0) return;
+    addFund({ id: uid(), date: fDate, amount: a, matchId: fMatch || null, from: fFrom || null, note: fNote.trim() });
+    setFAmt(""); setFNote(""); setFFrom(""); setFundOpen(false); endEditing();
+  };
+  const openFund = () => {
+    if (!isAdmin) { requestAdmin(); return; }
+    if (!fundOpen) {
+      const todayS = toISO(new Date());
+      const past = [...matches].filter(m => m.date <= todayS).sort((a, b) => b.date.localeCompare(a.date))[0];
+      setFMatch(filterMatch !== "all" && filterMatch !== "none" ? filterMatch : past ? past.id : "");
+      setFDate(todayS);
+    }
+    setFundOpen(!fundOpen);
+    if (!fundOpen) beginEditing(); else endEditing();
+  };
+  const E = React.createElement;
+  const tile = (label, val, color, sign) => E("div", { className: "rounded-xl p-2.5 text-center", style: { background: "rgba(255,255,255,0.04)", border: `1px solid ${color}55` } },
+    E("div", { className: "text-[10px] uppercase text-neutral-400", style: { letterSpacing: 1 } }, label),
+    E("div", { className: "kc-bebas whitespace-nowrap", style: { color, fontSize: 22 } }, (sign || "") + INR(Math.abs(val))));
+  const sortedFunds = [...visibleFunds].sort((a, b) => b.date.localeCompare(a.date));
+  const selMatch = filterMatch !== "all" && filterMatch !== "none" ? matches.find(m => m.id === filterMatch) : null;
+  let feeUI = null;
+  if (!selMatch) {
+    feeUI = E("div", { className: "text-[11px] text-neutral-500" }, "💡 Pick a match in the filter below to track who has paid the match fee.");
+  } else {
+    const fee = Number(selMatch.fee) || 0;
+    const dayIn = (avail && avail[selMatch.date]) || {};
+    const expectedIds = selMatch.played && selMatch.played.length ? selMatch.played : players.filter(pl => dayIn[pl.id] === "in").map(pl => pl.id);
+    const expected = sortedPlayers.filter(pl => expectedIds.includes(pl.id));
+    const paidRec = pid => (funds || []).find(f => f.matchId === selMatch.id && f.from === pid);
+    const paidCount = expected.filter(pl => paidRec(pl.id)).length;
+    const pending = expected.filter(pl => !paidRec(pl.id));
+    const collected = (funds || []).filter(f => f.matchId === selMatch.id).reduce((t, f) => t + f.amount, 0);
+    const markPaid = pid => {
+      if (!isAdmin) { requestAdmin(); return; }
+      if (!fee) { alert("Set the fee per player first."); return; }
+      addFund({ id: uid(), date: toISO(new Date()), amount: fee, matchId: selMatch.id, from: pid, note: "match fee" });
+    };
+    feeUI = E("div", { className: "space-y-2 pt-2", style: { borderTop: "1px solid rgba(255,255,255,0.08)" } },
+      E("div", { className: "flex items-center justify-between gap-2 flex-wrap" },
+        E("div", { className: "text-[11px] uppercase text-neutral-400", style: { letterSpacing: 2 } }, "Match fee · " + matchLabel(selMatch)),
+        isAdmin ? E("div", { className: "flex items-center gap-1" },
+          E("span", { className: "text-xs text-neutral-500" }, "₹/player"),
+          E("input", { type: "number", inputMode: "decimal", value: feeDraft !== "" ? feeDraft : (fee || ""), onFocus: beginEditing, onChange: e => setFeeDraft(e.target.value), placeholder: "0", style: { ...inputStyle, marginTop: 0, width: 80, padding: "4px 8px" } }),
+          E("button", { onClick: () => { const v = parseFloat(feeDraft); if (!isNaN(v) && v >= 0) updateMatch(selMatch.id, { fee: v }); setFeeDraft(""); endEditing(); }, className: "px-2 py-1 rounded-full text-xs font-bold", style: { background: "rgba(255,184,0,0.15)", color: GOLD, border: "1px solid rgba(255,184,0,0.4)" } }, "Set"))
+          : E("span", { className: "text-xs text-neutral-400" }, fee ? INR(fee) + " / player" : "Fee not set")),
+      expected.length === 0 ? E("div", { className: "text-xs text-neutral-500" }, "No players marked for this match yet — mark who played (Schedule tab) or set availability.") : E("div", { className: "text-xs text-neutral-400" }, `Paid ${paidCount} of ${expected.length}` + (fee ? ` · collected ${INR(collected)} · pending ${INR(pending.length * fee)}` : "")),
+      E("div", { className: "grid grid-cols-2 gap-1.5" }, expected.map(pl => {
+        const rec = paidRec(pl.id);
+        return E("div", { key: pl.id, className: "flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm", style: { background: rec ? "rgba(74,222,128,0.1)" : "rgba(255,255,255,0.04)", border: rec ? "1px solid rgba(74,222,128,0.35)" : "1px solid rgba(255,255,255,0.08)" } },
+          E("span", { className: "truncate flex-1 " + (rec ? "text-neutral-200" : "text-neutral-400") }, pl.name),
+          rec ? E("button", { onClick: () => { if (!isAdmin) { requestAdmin(); return; } if (confirm("Undo payment from " + pl.name + "?")) deleteFund(rec.id); }, className: "text-xs font-bold", style: { color: "#4ADE80" } }, "✓ Paid")
+              : E("button", { onClick: () => markPaid(pl.id), className: "text-[11px] font-bold px-2 py-0.5 rounded-full", style: { background: "rgba(255,184,0,0.15)", color: GOLD, border: "1px solid rgba(255,184,0,0.4)" } }, "Mark paid"));
+      })));
+  }
+  const fundUI = E(Card, { className: "p-4 space-y-3", style: { borderColor: "rgba(255,184,0,0.4)" } },
+    E("div", { className: "flex items-center justify-between" },
+      E("div", { className: "text-[11px] uppercase text-neutral-400", style: { letterSpacing: 2 } }, filterMatch === "all" ? "💼 Team fund · all matches" : "💼 Team fund · filtered"),
+      E("button", { onClick: openFund, className: "px-3 py-1 rounded-full text-xs font-bold", style: { background: "rgba(74,222,128,0.15)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.5)" } }, fundOpen ? "Cancel" : "+ Add inflow")),
+    E("div", { className: "grid grid-cols-3 gap-2" },
+      tile("Inflow", fundIn, "#4ADE80", "+"),
+      tile("Outflow", fundOut, "#f43f5e", "−"),
+      tile("Balance", fundBal, fundBal >= 0 ? GOLD : "#f43f5e", fundBal < 0 ? "−" : "")),
+    fundOpen && E("div", { className: "space-y-2 pop" },
+      E("div", { className: "grid grid-cols-2 gap-2" },
+        E("label", { className: "text-sm text-neutral-400" }, "Date", E("input", { type: "date", value: fDate, onChange: e => setFDate(e.target.value), style: inputStyle })),
+        E("label", { className: "text-sm text-neutral-400" }, "Amount (₹)", E("input", { type: "number", inputMode: "decimal", value: fAmt, onChange: e => setFAmt(e.target.value), placeholder: "0", style: inputStyle }))),
+      E("label", { className: "text-sm text-neutral-400 block" }, "Match",
+        E("select", { value: fMatch, onChange: e => setFMatch(e.target.value), style: inputStyle },
+          E("option", { value: "" }, "Not linked to a match"), [...matches].sort((a, b) => b.date.localeCompare(a.date)).map(m => E("option", { key: m.id, value: m.id }, matchLabel(m))))),
+      E("label", { className: "text-sm text-neutral-400 block" }, "Received from",
+        E("select", { value: fFrom, onChange: e => setFFrom(e.target.value), style: inputStyle },
+          E("option", { value: "" }, "Team / other"), sortedPlayers.map(pl => E("option", { key: pl.id, value: pl.id }, pl.name)))),
+      E("label", { className: "text-sm text-neutral-400 block" }, "Note (optional)", E("input", { value: fNote, onChange: e => setFNote(e.target.value), placeholder: "e.g., match fee, monthly contribution", style: inputStyle })),
+      E("button", { onClick: saveFund, disabled: !fAmt || parseFloat(fAmt) <= 0, className: "w-full py-2 kc-bebas text-lg disabled:opacity-40", style: { ...btnOrange, letterSpacing: 3 } }, "SAVE INFLOW")),
+    sortedFunds.length > 0 && E("button", { onClick: () => setShowFundLog(v => !v), className: "text-xs text-neutral-500 underline" }, showFundLog ? "Hide inflow history" : `Show inflow history (${sortedFunds.length})`),
+    showFundLog && E("div", { className: "space-y-1" }, sortedFunds.map(f => E("div", { key: f.id, className: "flex items-center gap-2 text-sm" },
+      E("span", { className: "text-neutral-500 text-xs w-14 shrink-0" }, fmt(f.date)),
+      E("span", { className: "text-neutral-300 truncate" }, f.from ? playerName(f.from) : "Team", (() => { const mm = matches.find(x => x.id === f.matchId); return mm ? E("span", { className: "text-neutral-500" }, " · vs " + (mm.opponent || "match")) : null; })(), f.note ? E("span", { className: "text-neutral-500" }, " · " + f.note) : null),
+      E("span", { className: "kc-bebas ml-auto", style: { color: "#4ADE80" } }, "+" + INR(f.amount)),
+      isAdmin && E("button", { onClick: () => { if (confirm("Delete this inflow?")) deleteFund(f.id); }, className: "text-neutral-600 hover:text-rose-400 text-xs ml-1" }, "✕")))),
+    feeUI,
+    E("p", { className: "text-[11px] text-neutral-600" }, "Inflow = money received from the team after matches. Outflow = expenses logged. Balance = inflow − outflow. Follows the filter below."));
   const openAdd = () => {
     setPaidBy(me || "");
     setOpen(!open);
@@ -2459,7 +2581,7 @@ function ExpensesTab({
       ...btnOrange,
       letterSpacing: 1
     }
-  }, open ? "Cancel" : "+ Add expense")), me && Math.abs(balances[me] || 0) > 0.01 && /*#__PURE__*/React.createElement(Card, {
+  }, open ? "Cancel" : "+ Add expense")), fundUI, me && Math.abs(balances[me] || 0) > 0.01 && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 flex items-center justify-between",
     style: {
       borderColor: (balances[me] || 0) >= 0 ? "rgba(74,222,128,0.4)" : "rgba(244,63,94,0.4)"
@@ -2845,7 +2967,7 @@ function ExpensesTab({
       }
     }, playerName(e.paidBy))), /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-neutral-500"
-    }, INR(perHead), "/head · split ", (e.sharers || []).length, " way", (e.sharers || []).length === 1 ? "" : "s"))), /*#__PURE__*/React.createElement("div", {
+    }, INR(perHead) + "/head · split " + (e.sharers || []).length + " way" + ((e.sharers || []).length === 1 ? "" : "s")))), /*#__PURE__*/React.createElement("div", {
       className: "text-right shrink-0"
     }, /*#__PURE__*/React.createElement("div", {
       className: "kc-bebas text-2xl",
